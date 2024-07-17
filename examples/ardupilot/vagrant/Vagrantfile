@@ -227,6 +227,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       pip3 install tarjan pyyaml pydot
       sudo add-apt-repository ppa:deadsnakes/ppa
       sudo apt install -y python3.6
+      sudo apt install -y python3.6-distutils
       python3.6 -m pip install tarjan
       cd ~
       git clone https://github.com/SRI-CSL/radler.git

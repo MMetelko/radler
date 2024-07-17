@@ -70,6 +70,7 @@ RUN colcon mixin add default \
 
 # install ros2 dashing 
 RUN apt-get update -y
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get install -y ros-foxy-desktop
 
 # install basics
@@ -86,6 +87,7 @@ RUN pip3 install tarjan pyyaml pydot
 RUN apt-get install -y software-properties-common
 RUN add-apt-repository ppa:deadsnakes/ppa
 RUN apt install -y python3.6
+RUN apt install -y python3.6-distutils
 RUN python3.6 -m pip install tarjan
 RUN apt-get install -y default-jdk
 
