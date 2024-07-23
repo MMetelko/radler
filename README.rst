@@ -21,7 +21,7 @@ To get Radler working on a clean version of Ubuntu 20.04::
         sudo apt-get install cmake python3-pip
         sudo pip3 install tarjan pyyaml pydot
 
-To install ROS2 Foxy, follow the instructions from https://index.ros.org/doc/ros2/Installation/
+To install ROS2 Foxy, follow the instructions from https://docs.ros.org/en/foxy/Installation.html
 
 To install colcon, follow the instructions from https://colcon.readthedocs.io/en/released/user/installation.html
 
