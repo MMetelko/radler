@@ -34,6 +34,12 @@ Start SITL simulator.
 
   vagrant ssh -c "sim_vehicle.py -v ArduCopter --console --map -m --out=127.0.0.1:14550"
 
+If you encounter the DISPLAY error (e.g., xterm: Xt error: Can’t open display: 0.0), edit the */etc/ssh/sshd_config* file. 
+
+:: 
+
+  X11Forwarding yes
+
 If you encounter the following error:
 
 :: 
@@ -41,7 +47,7 @@ If you encounter the following error:
   Connect tcp:127.0.0.1:5760 source_system=255
   Failed to connect to tcp:127.0.0.1:5760 : [Errno 111] Connection refused
 
-Consider adding a delay before starting SIM_VEHICLE. The *-N* option below skips the build." 
+Consider adding a delay before starting mavproxy. The *-N* option below skips the build. More options can be found in the */vagrant/Tools/autotest/sim_vehicle.py* file.
 
 :: 
 
