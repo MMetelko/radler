@@ -34,6 +34,19 @@ Start SITL simulator.
 
   vagrant ssh -c "sim_vehicle.py -v ArduCopter --console --map -m --out=127.0.0.1:14550"
 
+If you encounter the following error:
+
+:: 
+
+  Connect tcp:127.0.0.1:5760 source_system=255
+  Failed to connect to tcp:127.0.0.1:5760 : [Errno 111] Connection refused
+
+Consider adding a delay before starting SIM_VEHICLE.
+
+:: 
+
+  sim_vehicle.py -v ArduCopter --console --map -m --out=127.0.0.1:14550 -N -d 5  
+
 Connect MAVROS with SITL.
 
 :: 
