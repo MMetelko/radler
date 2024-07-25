@@ -41,7 +41,7 @@ If you encounter the following error:
   Connect tcp:127.0.0.1:5760 source_system=255
   Failed to connect to tcp:127.0.0.1:5760 : [Errno 111] Connection refused
 
-Consider adding a delay before starting SIM_VEHICLE.
+Consider adding a delay before starting SIM_VEHICLE. The *-N* option below skips the build." 
 
 :: 
 
@@ -74,12 +74,12 @@ On the simulator side (upper right window of below snapshot), change the Arducop
   arm throttle
   takeoff 30
 
-On the map (bottom left window), create a target position with altitude, then observe the Arducopter flying to the target.
+On the map (bottom left window), create a target position with altitude (or simply use a command *position x y z*), then observe the Arducopter flying to the target.
 
 .. image:: ./takeoff.png  
    :height: 300
 
-When the battery level hits below threshold (i.e., 90%) the mode change to return to takeoff location is published by battery node. The gateway node subscribes from it and calls ROS service to set custom mode of the Arducopter. Note that the mode change to RTL on the simulator side.
+When the battery level hits below threshold (i.e., 90%) the mode change to return to takeoff location is published by battery node. The gateway node subscribes from it and calls ROS service to set custom mode of the Arducopter. Note that the mode change to RTL on the simulator side. The battery level can also be checked with the command *bat* on the console, and can be reset with the command *batreset*.
 
 On the map window of below snapshot, one can observe that the Arducopter heading to the takeoff location.
 
