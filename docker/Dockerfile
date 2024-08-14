@@ -91,8 +91,8 @@ RUN apt install -y python3.6-distutils
 RUN python3.6 -m pip install tarjan
 RUN apt-get install -y default-jdk
 
-RUN cd ~ ; git clone https://github.com/SRI-CSL/radler.git
-RUN cd ~/radler ; git checkout ros2 ; git submodule update --init --recursive
+RUN cd ~ ; git clone https://github.com/MMetelko/radler.git
+RUN cd ~/radler ; git checkout thermo-example ; git submodule update --init --recursive
 
 # setup ros2_ws 
 ENV ROS2_WS /tmp/ros2_ws
@@ -103,6 +103,8 @@ ENV ROS2_DISTRO foxy
 ENV ROS2_PREFIX /opt/ros
 WORKDIR $ROS2_WS
 
+COPY ./launch_house_nodes.sh /
+RUN chmod +x /launch_house_nodes.sh
 COPY ./ros2_entrypoint.sh /
 ENTRYPOINT ["/ros2_entrypoint.sh"]
 CMD ["bash"]
