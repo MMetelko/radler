@@ -88,9 +88,7 @@ ament_package()
 
 install(TARGETS
   {to_install}
-  ARCHIVE DESTINATION lib 
-  LIBRARY DESTINATION lib 
-  RUNTIME DESTINATION bin 
+  DESTINATION lib/{module}
 )
 
 install(FILES
