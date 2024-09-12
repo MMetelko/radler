@@ -3,6 +3,8 @@ To test with Docker image
 
 To build the radler/ros2 docker image::
 
+  apt-get install docker-buildx
+  export DOCKER_BUILDKIT=1
   cd /path/to/radler/docker
   docker build -t radler/ros2 .
   
@@ -23,6 +25,7 @@ To try SROS2 (https://github.com/ros2/sros2/blob/foxy/SROS2_Linux.md), start a c
 
 Inside of the container, run listener and talker nodes with security feature on::
 
+  ros2 pkg executables                    # to check pkg/node available     
   ros2 run pubsub listener --ros-args --enclave /talker_listener/listener
   ros2 run pubsub talker --ros-args --enclave /talker_listener/talker
 
