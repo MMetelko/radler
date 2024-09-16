@@ -103,8 +103,6 @@ ENV ROS2_DISTRO foxy
 ENV ROS2_PREFIX /opt/ros
 WORKDIR $ROS2_WS
 
-COPY ./launch_house_nodes.sh /
-RUN chmod +x /launch_house_nodes.sh
 COPY ./ros2_entrypoint.sh /
 ENTRYPOINT ["/ros2_entrypoint.sh"]
 CMD ["bash"]

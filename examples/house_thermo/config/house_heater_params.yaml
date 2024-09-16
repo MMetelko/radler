@@ -1,0 +1,9 @@
+house_thermo:
+  ros__parameters:
+    heater_data:
+      maxperiod: 0.1
+
+heater:
+  ros__parameters:
+    thermostat_data:
+      maxlatency: 0.001

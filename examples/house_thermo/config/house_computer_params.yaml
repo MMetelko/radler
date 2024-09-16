@@ -1,0 +1,37 @@
+house_thermo:
+  ros__parameters:
+    # Global parameters that might be for all nodes can remain here
+    thermostat_data:
+      maxperiod: 0.1
+    thermometer_data:
+      maxperiod: 0.02
+    house_data:
+      maxperiod: 0.1
+    thermostat_button:
+      maxperiod: 0.02
+    thermostat_set:
+      maxperiod: 0.02
+
+
+thermostat:
+  ros__parameters:
+    thermostat_button:
+      maxlatency: 0.001
+    thermometer_data:
+      maxlatency: 0.001
+    thermostat_set:
+      maxlatency: 0.001
+
+
+thermometer:
+  ros__parameters:
+    heater_data:
+      maxlatency: 0.001
+    house_data:
+      maxlatency: 0.001
+
+
+house:
+  ros__parameters:
+    heater_data:
+      maxlatency: 0.001
