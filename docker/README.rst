@@ -3,6 +3,8 @@ To test with Docker image
 
 To build the radler/ros2 docker image::
 
+  apt-get install docker-buildx
+  export DOCKER_BUILDKIT=1
   cd /path/to/radler/docker
   docker build -t radler/ros2 .
   
@@ -18,11 +20,14 @@ You can stop everything by typing Ctrl-C.
 To try SROS2 (https://github.com/ros2/sros2/blob/foxy/SROS2_Linux.md), start a container for both talker and listener nodes::
 
   docker run --env-file sros_env.list --rm -i -t radler/ros2:latest bash
+  docker ps                               # to retrieve the CONTAINER_ID
+  docker exec -it CONTAINER_ID bash       # to get into the container's shell
 
 Inside of the container, run listener and talker nodes with security feature on::
 
-  ros2 run demo_nodes_py listener --ros-args --enclave /talker_listener/listener
-  ros2 run demo_nodes_py talker --ros-args --enclave /talker_listener/talker
+  ros2 pkg executables                    # to check pkg/node available     
+  ros2 run pubsub listener --ros-args --enclave /talker_listener/listener
+  ros2 run pubsub talker --ros-args --enclave /talker_listener/talker
 
 To run the above talker_listener demo on two containers, start one container c1::
 
@@ -45,8 +50,8 @@ Copy talker keys from the container c1 to the container c2::
 Inside of the container c2, untar talker keys and run talker node::
 
   tar zxvf talker.tgz
-  ros2 run demo_nodes_py talker --ros-args --enclave /talker_listener/talker
+  ros2 run pubsub talker --ros-args --enclave /talker_listener/talker
 
 Inside of the container c1, run listener node::
 
-  ros2 run demo_nodes_py listener --ros-args --enclave /talker_listener/listener
+  ros2 run pubsub listener --ros-args --enclave /talker_listener/listener
