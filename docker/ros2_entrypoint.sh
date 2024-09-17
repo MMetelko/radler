@@ -22,6 +22,7 @@ cd ~
 cp radler/examples/house_thermo/launch_files/* "$ROS2_WS/src/ros/house_thermo/launch/."
 mkdir "$ROS2_WS/src/ros/house_thermo/launch/config"
 cp radler/examples/house_thermo/config/* "$ROS2_WS/src/ros/house_thermo/launch/config/."
+mkdir "$ROS2_WS/install/house_thermo/share/house_thermo/config"
 ln -s "$ROS2_WS/src/ros/house_thermo/launch/config/house_computer_params.yaml" "$ROS2_WS/install/house_thermo/share/house_thermo/config/house_computer_params.yaml"
 ln -s "$ROS2_WS/src/ros/house_thermo/launch/config/house_heater_params.yaml" "$ROS2_WS/install/house_thermo/share/house_thermo/config/house_heater_params.yaml"
 ln -s "$ROS2_WS/src/ros/house_thermo/launch/house_thermo.plant.house_computer.launch.py" "$ROS2_WS/install/house_thermo/share/house_thermo/house_thermo.plant.house_computer.launch.py"

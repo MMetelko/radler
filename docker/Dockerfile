@@ -24,8 +24,8 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C1CF6E31E6
 RUN echo "deb http://packages.ros.org/ros2/ubuntu `lsb_release -sc` main" > /etc/apt/sources.list.d/ros2-latest.list
 
 # setup environment
-ENV LANG C.UTF-8
-ENV LC_ALL C.UTF-8
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 
 # install bootstrap tools
 RUN apt-get update && apt-get install --no-install-recommends -y \
@@ -95,12 +95,12 @@ RUN cd ~ ; git clone https://github.com/MMetelko/radler.git
 RUN cd ~/radler ; git checkout thermo-example ; git submodule update --init --recursive
 
 # setup ros2_ws 
-ENV ROS2_WS /tmp/ros2_ws
+ENV ROS2_WS="/tmp/ros2_ws"
 RUN mkdir -p $ROS2_WS/src
 
 # setup entrypoint
-ENV ROS2_DISTRO foxy
-ENV ROS2_PREFIX /opt/ros
+ENV ROS2_DISTRO="foxy"
+ENV ROS2_PREFIX="/opt/ros"
 WORKDIR $ROS2_WS
 
 COPY ./ros2_entrypoint.sh /
