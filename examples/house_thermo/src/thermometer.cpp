@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <iostream>
 
-void Thermometer::Thermometer() {
+Thermometer::Thermometer() {
   outfile.open("$ROS2_WS/install/data/thermometer_output.log", std::ios_base::app);
 }
 

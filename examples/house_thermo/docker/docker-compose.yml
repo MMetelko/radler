@@ -12,8 +12,6 @@ services:
     command: ros2 launch house_thermo house_thermo.plant.house_computer.launch.py
     depends_on:
       - house_heater
-    #environment:
-    #  - "LISTENER_ENV=listener_value"
     networks:
       - home_thermo_ros_network
 

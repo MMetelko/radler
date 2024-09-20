@@ -79,6 +79,7 @@ RUN apt-get install -y net-tools iputils-ping
 RUN apt-get install -y openssh-server openssh-client
 RUN apt-get install -y libncurses5-dev
 RUN apt-get install -y --no-install-recommends vim-tiny
+RUN apt-get install -y nano
 
 # install radler packages
 RUN apt-get update -y
