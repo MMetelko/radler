@@ -4,7 +4,7 @@
 #include <iostream>
 
 Thermometer::Thermometer() {
-  outfile.open("$ROS2_WS/install/data/thermometer_output.log", std::ios_base::app);
+  outfile.open("$ROS2_WS/data/thermometer_output.txt", std::ios_base::app);
 }
 
 Thermometer::~Thermometer() {

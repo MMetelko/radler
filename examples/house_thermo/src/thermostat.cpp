@@ -6,7 +6,7 @@ Thermostat::Thermostat() {
   this->status = false;
   this->tol = 2.0;
 
-  outfile.open("$ROS2_WS/install/data/thermostat_output.log", std::ios_base::app);
+  outfile.open("$ROS2_WS/data/thermostat_output.txt", std::ios_base::app);
 }
 
 Thermostat::~Thermostat() {

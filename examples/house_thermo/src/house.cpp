@@ -6,7 +6,7 @@ House::House() {
   this->interval = 0.02;
   this->temp = 70.0;
 
-  outfile.open("$ROS2_WS/install/data/house_output.log", std::ios_base::app);
+  outfile.open("$ROS2_WS/data/house_output.txt", std::ios_base::app);
 }
 
 House::~House() {
