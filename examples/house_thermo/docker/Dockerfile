@@ -98,6 +98,8 @@ RUN cd ~/radler ; git checkout thermo-example ; git submodule update --init --re
 # setup ros2_ws 
 ENV ROS2_WS="/tmp/ros2_ws"
 RUN mkdir -p $ROS2_WS/src
+# Create directory to store application data from the nodes
+RUN mkdir -p "$ROS2_WS/data"
 
 # setup entrypoint
 ENV ROS2_DISTRO="foxy"

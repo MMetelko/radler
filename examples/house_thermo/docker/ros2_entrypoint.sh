@@ -36,8 +36,5 @@ ros2 security create_key sros2_keys /house_thermo/house
 ros2 security create_key sros2_keys /house_thermo/thermometer
 ros2 security create_key sros2_keys /house_thermo/thermostat
 
-# Create directory to store application data from the nodes
-mkdir -p "$ROS2_WS/data"
-
 exec "$@"
 

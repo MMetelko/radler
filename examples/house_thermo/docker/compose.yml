@@ -1,5 +1,3 @@
-version: '3.8'  # Example version
-
 services:
   house_heater:
     image: radler/ros2:latest
@@ -12,6 +10,8 @@ services:
     command: ros2 launch house_thermo house_thermo.plant.house_computer.launch.py
     depends_on:
       - house_heater
+    volumes:
+      - /home/metelko/vortex/radler_data:/tmp/ros2_ws/data
     networks:
       - home_thermo_ros_network
 
@@ -19,6 +19,3 @@ networks:
   home_thermo_ros_network:
     driver: bridge
 
-volumes:
-  shared_data:
-    driver: local
