@@ -1,12 +1,14 @@
 #include "radl__house.h"
 #include <fstream>
+#include <string>
 
 class House {
  private:
   float temp;
   float leak_rate;
   float interval;
-  std::ofstream outfile;
+  std::string outFilename;
+  std::ofstream outFile;
  public:
   House();
   ~House();

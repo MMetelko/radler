@@ -1,9 +1,11 @@
 #include "radl__thermometer.h"
 #include <fstream>
+#include <string>
 
 class Thermometer {
  private:
-  std::ofstream outfile;
+  std::string outFilename;
+  std::ofstream outFile;
 
  public: 
   Thermometer();

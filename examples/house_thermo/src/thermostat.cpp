@@ -6,12 +6,16 @@ Thermostat::Thermostat() {
   this->status = false;
   this->tol = 2.0;
 
-  outfile.open("$ROS2_WS/data/thermostat_output.txt", std::ios_base::app);
+  outFilename = "/tmp/ros2_ws/data/thermostat_output.txt";
+  outFile.open(outFilename, std::ios_base::app);
+  if (!outFile.is_open()) {
+    std::cerr << "Unable to open " << outFilename << " for writing." << std::endl;
+  }
 }
 
 Thermostat::~Thermostat() {
-  if (outfile.is_open()) {
-    outfile.close();
+  if (outFile.is_open()) {
+    outFile.close();
   }
 }
 
@@ -31,6 +35,7 @@ void Thermostat::step(const radl_in_t * in, const radl_in_flags_t* inflags,
   } else {
     out->heater_switch->switch_on = this->status;
   } 
-  outfile << "Switch : " << out->heater_switch->switch_on << std::endl;
+  //std::cout << "Switch : " << out->heater_switch->switch_on << std::endl;
+  outFile << "Switch : " << out->heater_switch->switch_on << std::endl;
 }
 

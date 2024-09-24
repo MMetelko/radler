@@ -1,12 +1,14 @@
 #include "radl__thermostat.h"
 #include <fstream>
+#include <string>
 
 class Thermostat {
  private:
   float set_temp;
   bool status;
   float tol;
-  std::ofstream outfile;
+  std::string outFilename;
+  std::ofstream outFile;
  public:
   Thermostat();
   ~Thermostat();

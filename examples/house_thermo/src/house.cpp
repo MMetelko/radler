@@ -6,12 +6,16 @@ House::House() {
   this->interval = 0.02;
   this->temp = 70.0;
 
-  outfile.open("$ROS2_WS/data/house_output.txt", std::ios_base::app);
+  outFilename = "/tmp/ros2_ws/data/house_output.txt";
+  outFile.open(outFilename, std::ios_base::app);
+  if (!outFile.is_open()) {
+    std::cerr << "Unable to open " << outFilename << " for writing." << std::endl;
+  }
 }
 
 House::~House() {
-  if (outfile.is_open()) {
-    outfile.close();
+  if (outFile.is_open()) {
+    outFile.close();
   }
 }
 
@@ -20,7 +24,8 @@ void House::step(const radl_in_t * in, const radl_in_flags_t* iflags,
   this->temp += this->interval*(in->heater_rate->rate - this->leak_rate);
   out->house_temp->temp = this->temp;
   oflags->house_temp = 0;
-  outfile << "Temperature : " << out->house_temp->temp << " Heater Rate : " << in->heater_rate->rate << std::endl;
+  outFile << "Temperature : " << out->house_temp->temp << " Heater Rate : " << in->heater_rate->rate << std::endl;
+  //std::cout << "Temperature : " << out->house_temp->temp << " Heater Rate : " << in->heater_rate->rate << std::endl;
 }
 
 
