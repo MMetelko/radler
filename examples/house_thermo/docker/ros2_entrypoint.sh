@@ -1,19 +1,12 @@
 #!/bin/bash
-#set -e
-
-#MM added for local run
-source "setup_ros_env.sh"
+set -e
 
 # setup ros2 environment
 source "$ROS2_PREFIX/$ROS2_DISTRO/setup.bash"
 
 # build radler house_thermo example
-#MM cd ~/radler 
-#MM git pull
-#MM (next command added for debugging locally)
-
-cd ../../..
-echo $PWD
+cd ~/radler 
+git pull
 ./radler.sh --ws_dir $ROS2_WS/src compile examples/house_thermo/house_thermo.radl --plant plant --ROS
 cd $ROS2_WS
 colcon build \
@@ -26,12 +19,9 @@ source "$ROS2_WS/install/local_setup.bash"
 cd ~
 
 # MM: Workaround for ROS2 launch files until they are available in the radler repo
-#MM copies directories modified for this setup only
-#cp radler/examples/house_thermo/launch_files/* "$ROS2_WS/src/ros/house_thermo/launch/."
-cp ~/temp/mmversion/radler/examples/house_thermo/launch_files/*.py "$ROS2_WS/src/ros/house_thermo/launch/."
+cp radler/examples/house_thermo/launch_files/* "$ROS2_WS/src/ros/house_thermo/launch/."
 mkdir -p "$ROS2_WS/src/ros/house_thermo/launch/config"
-#cp radler/examples/house_thermo/config/* "$ROS2_WS/src/ros/house_thermo/launch/config/."
-cp ~/temp/mmversion/radler/examples/house_thermo/config/*.yaml "$ROS2_WS/src/ros/house_thermo/launch/config/."
+cp radler/examples/house_thermo/config/* "$ROS2_WS/src/ros/house_thermo/launch/config/."
 mkdir -p "$ROS2_WS/install/house_thermo/share/house_thermo/config"
 ln -s "$ROS2_WS/src/ros/house_thermo/launch/config/house_computer_params.yaml" "$ROS2_WS/install/house_thermo/share/house_thermo/config/house_computer_params.yaml"
 ln -s "$ROS2_WS/src/ros/house_thermo/launch/config/house_heater_params.yaml" "$ROS2_WS/install/house_thermo/share/house_thermo/config/house_heater_params.yaml"
@@ -49,5 +39,5 @@ ros2 security create_key sros2_keys /house_thermo/thermostat
 # Create directory to store application data from the nodes
 mkdir -p "$ROS2_WS/data"
 
-#MM exec "$@"
+exec "$@"
 
