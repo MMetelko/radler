@@ -91,6 +91,7 @@ RUN apt install -y python3.6
 RUN apt install -y python3.6-distutils
 RUN python3.6 -m pip install tarjan
 RUN apt-get install -y default-jdk
+RUN pip3 install empy==3.3.4
 
 RUN cd ~ ; git clone https://github.com/MMetelko/radler.git
 RUN cd ~/radler ; git checkout thermo-example ; git submodule update --init --recursive
@@ -108,5 +109,5 @@ WORKDIR $ROS2_WS
 
 COPY ./ros2_entrypoint.sh /
 ENTRYPOINT ["/ros2_entrypoint.sh"]
-CMD ["bash"]
+CMD ["/bin/bash"]
 
