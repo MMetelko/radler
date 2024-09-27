@@ -11,7 +11,7 @@ services:
     depends_on:
       - house_heater
     volumes:
-      - ./house_thermo_data:/tmp/ros2_ws/data
+      - house_thermo_data:/tmp/ros2_ws/data
     networks:
       - home_thermo_ros_network
 

@@ -91,7 +91,6 @@ RUN apt install -y python3.6
 RUN apt install -y python3.6-distutils
 RUN python3.6 -m pip install tarjan
 RUN apt-get install -y default-jdk
-RUN rm -rf /var/lib/apt/lists/*
 
 RUN cd ~ ; git clone https://github.com/MMetelko/radler.git
 RUN cd ~/radler ; git checkout thermo-example ; git submodule update --init --recursive
