@@ -1,0 +1,16 @@
+services:
+  ardupilot:
+    image: DesCertPhase2ArduPilot:latest
+    #MM Stopped here (need to determine from example readme information)
+    command: ros2 launch house_thermo house_thermo.plant.house_computer.launch.py
+    #depends_on:
+    #  - house_heater
+    volumes:
+      - ./house_thermo_data:/tmp/ros2_ws/data
+    networks:
+      - ardupilot_ros_network
+
+networks:
+  ardupilot_ros_network:
+    driver: bridge
+
