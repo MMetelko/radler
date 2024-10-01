@@ -70,7 +70,7 @@ RUN apt-get install -y \
 # Install GeographicLib datasets
 RUN wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/install_geographiclib_datasets.sh -O ~/install_geographiclib_datasets.sh
 RUN chmod a+x ~/install_geographiclib_datasets.sh
-RUN sudo ~/install_geographiclib_datasets.sh
+RUN ~/install_geographiclib_datasets.sh
 RUN echo "\n# Setup for ROS2" >> ~/.bashrc && \
     echo "source /opt/ros/foxy/setup.bash" >> ~/.bashrc
 RUN echo "\n# Setup for ROS2" >> ~/.profile && \
@@ -91,14 +91,23 @@ RUN cd ~ && \
 #daikon
 RUN apt-get install -y \
     netpbm \
-    texinfo
+    texinfo \
+    texlive
+    
+# From vagrant/setup.bash
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/jvm/java-11-openjdk-amd64/lib/server
+ENV DAIKONDIR=~/daikon-5.8.10
+RUN source $DAIKONDIR/scripts/daikon.bashrc
+ENV CLASSPATH=$CLASSPATH:~/daikon-5.8.10/java/daikon:~/radler/examples/ardupilot/jni:~/beepbeep-3-examples/beepbeep-3-examples.jar:~/daikon-5.8.10/daikon.jar:~/daikon-5.8.10/java/dcomp_rt.jar:~/daikon-5.8.10/java/ChicoryPremain.jar:~/daikon-5.8.10/java/dcomp_premain.jar:~/apache-log4j-2.17.2-bin/log4j-api-2.17.2.jar:~/apache-log4j-2.17.2-bin/log4j-core-2.17.2.jar
+ENV PATH=$PATH:~/apache-log4j-2.17.2-bin
+
 RUN cd ~ && \
     wget http://plse.cs.washington.edu/daikon/history/daikon-5.8.10/daikon-5.8.10.tar.gz && \
     tar zxf daikon-5.8.10.tar.gz && \
     cd daikon-5.8.10 && \
     make rebuild-everything
 RUN echo "\n# Setup for BeepBepp/Log4J/Daikon" >> ~/.profile && \
-    echo "source ~/radler/examples/ardupilot/vagrant/setup.bash" >> ~/.profile
+    echo "source ~/radler/examples/ardupilot/docker/setup.bash" >> ~/.profile
 
 #ros2 build
 RUN pip3 install colcon-common-extensions colcon-mixin
@@ -124,13 +133,6 @@ RUN sudo mv /opt/ros/foxy/share/mavros/launch /opt/ros/foxy/share/mavros/launch.
 RUN sudo cd ~/radler && \
     cp -r examples/ardupilot/launch /opt/ros/foxy/share/mavros
 RUN mkdir -p ~/ros2_ws/src
-
-# From vagrant/setup.bash
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/jvm/java-11-openjdk-amd64/lib/server
-ENV DAIKONDIR=~/daikon-5.8.10
-RUN source $DAIKONDIR/scripts/daikon.bashrc
-ENV CLASSPATH=$CLASSPATH:~/daikon-5.8.10/java/daikon:~/radler/examples/ardupilot/jni:~/beepbeep-3-examples/beepbeep-3-examples.jar:~/daikon-5.8.10/daikon.jar:~/daikon-5.8.10/java/dcomp_rt.jar:~/daikon-5.8.10/java/ChicoryPremain.jar:~/daikon-5.8.10/java/dcomp_premain.jar:~/apache-log4j-2.17.2-bin/log4j-api-2.17.2.jar:~/apache-log4j-2.17.2-bin/log4j-core-2.17.2.jar
-ENV PATH=$PATH:~/apache-log4j-2.17.2-bin
 
 # From vagrant sros_env.bash
 ENV ROS_SECURITY_KEYSTORE=~/ros2_ws/sros2_keys
