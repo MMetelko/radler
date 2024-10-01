@@ -13,10 +13,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y locales
 RUN locale-gen en_US en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 ENV LANG=en_US.UTF-8
-
-# Add ROS2 aptrepo
-RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - 
-RUN sh -c 'echo "deb [arch=$(dpkg --print-architecture)] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list' 
     
 # Update system packages and install necessary tools
 RUN apt-get update && apt-get install -y \
@@ -24,13 +20,10 @@ RUN apt-get update && apt-get install -y \
     cmake \
     git \
     libbullet-dev \
-    python3-colcon-common-extensions \
     python3-flake8 \
     python3-pip \
     python3-pytest-cov \
-    python3-rosdep \
     python3-setuptools \
-    python3-vcstool \
     wget
 
 RUN python3 -m pip install -U \
@@ -57,40 +50,55 @@ RUN apt-get update && apt-get install -y \
     gnupg2 \
     lsb-release
 
-# Install ROS
-RUN apt-get update && apt-get install -y \
-    ros-foxy-desktop \
-    ros-foxy-mavros \
+# Install ROS2
+RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - 
+RUN sh -c 'echo "deb [arch=$(dpkg --print-architecture)] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list' 
+
+RUN apt-get update && apt-get install -y ros-foxy-desktop
+RUN apt-get install -y ros-foxy-mavros
+RUN apt-get install -y \
     ros-foxy-rqt \
-    ros-foxy-rqt-common-plugins \
+    ros-foxy-rqt-common-plugins
+RUN apt-get install -y \
     mesa-utils \
     libgl1-mesa-glx
+RUN apt-get install -y \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    python3-vcstool
 
 # Install GeographicLib datasets
 RUN wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/install_geographiclib_datasets.sh -O ~/install_geographiclib_datasets.sh
 RUN chmod a+x ~/install_geographiclib_datasets.sh
 RUN sudo ~/install_geographiclib_datasets.sh
-RUN (echo ; echo "# Setup for ROS2" ; echo "source /opt/ros/foxy/setup.bash") >> ~/.bashrc
-RUN (echo ; echo "# Setup for ROS2" ; echo "source /opt/ros/foxy/setup.bash") >> ~/.profile
-RUN source ~/.profile
+RUN echo "\n# Setup for ROS2" >> ~/.bashrc && \
+    echo "source /opt/ros/foxy/setup.bash" >> ~/.bashrc
+RUN echo "\n# Setup for ROS2" >> ~/.profile && \
+    echo "source /opt/ros/foxy/setup.bash" >> ~/.profile
 
 #beepbeep
 RUN apt-get update && apt-get install -y \
     default-jdk \
     ant
 
-# Download and extract Log4J
+# Download and extract Log4J 
+# Orginally requested version 2.17.2 which is no longer available - moved to 2.24.1 (which is a .zip file)
+RUN apt-get install -y unzip
 RUN cd ~ && \
-    wget https://dlcdn.apache.org/logging/log4j/2.17.2/apache-log4j-2.17.2-bin.tar.gz && \
-    tar zxvf apache-log4j-2.17.2-bin.tar.gz
+    wget https://dlcdn.apache.org/logging/log4j/2.24.1/apache-log4j-2.24.1-bin.zip && \
+    unzip apache-log4j-2.24.1-bin.zip
 
 #daikon
+RUN apt-get install -y \
+    netpbm \
+    texinfo
 RUN cd ~ && \
-    wget http://plse.cs.washington.edu/daikon/download/daikon-5.8.10.tar.gz && \
+    wget http://plse.cs.washington.edu/daikon/history/daikon-5.8.10/daikon-5.8.10.tar.gz && \
     tar zxf daikon-5.8.10.tar.gz && \
     cd daikon-5.8.10 && \
-    make rebuild-everything && \
-    (echo ; echo "# Setup for BeepBepp/Log4J/Daikon" ; echo "source /home/vagrant/radler/examples/ardupilot/vagrant/setup.bash") >> ~/.profile
+    make rebuild-everything
+RUN echo "\n# Setup for BeepBepp/Log4J/Daikon" >> ~/.profile && \
+    echo "source ~/radler/examples/ardupilot/vagrant/setup.bash" >> ~/.profile
 
 #ros2 build
 RUN pip3 install colcon-common-extensions colcon-mixin
