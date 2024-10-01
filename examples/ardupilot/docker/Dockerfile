@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y locales
 RUN locale-gen en_US en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 ENV LANG=en_US.UTF-8
 
+# Add ROS2 aptrepo
+RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - 
+RUN sh -c 'echo "deb [arch=$(dpkg --print-architecture)] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list' 
+    
 # Update system packages and install necessary tools
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -54,8 +58,6 @@ RUN apt-get update && apt-get install -y \
     lsb-release
 
 # Install ROS
-RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - 
-RUN sh -c 'echo "deb [arch=$(dpkg --print-architecture)] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list' 
 RUN apt-get update && apt-get install -y \
     ros-foxy-desktop \
     ros-foxy-mavros \
@@ -119,11 +121,7 @@ RUN mkdir -p ~/ros2_ws/src
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/jvm/java-11-openjdk-amd64/lib/server
 ENV DAIKONDIR=~/daikon-5.8.10
 RUN source $DAIKONDIR/scripts/daikon.bashrc
-ENV CLASSPATH=$CLASSPATH:~/daikon-5.8.10/java/daikon:~/radler/examples/ardupilot/jni:\
-    ~/beepbeep-3-examples/beepbeep-3-examples.jar:~/daikon-5.8.10/daikon.jar:\
-    ~/daikon-5.8.10/java/dcomp_rt.jar:~/daikon-5.8.10/java/ChicoryPremain.jar:\
-    ~/daikon-5.8.10/java/dcomp_premain.jar:~/apache-log4j-2.17.2-bin/log4j-api-2.17.2.jar:\
-    ~/apache-log4j-2.17.2-bin/log4j-core-2.17.2.jar
+ENV CLASSPATH=$CLASSPATH:~/daikon-5.8.10/java/daikon:~/radler/examples/ardupilot/jni:~/beepbeep-3-examples/beepbeep-3-examples.jar:~/daikon-5.8.10/daikon.jar:~/daikon-5.8.10/java/dcomp_rt.jar:~/daikon-5.8.10/java/ChicoryPremain.jar:~/daikon-5.8.10/java/dcomp_premain.jar:~/apache-log4j-2.17.2-bin/log4j-api-2.17.2.jar:~/apache-log4j-2.17.2-bin/log4j-core-2.17.2.jar
 ENV PATH=$PATH:~/apache-log4j-2.17.2-bin
 
 # From vagrant sros_env.bash
