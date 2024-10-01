@@ -4,9 +4,6 @@ set -e
 # setup ros2 environment
 source "$ROS2_PREFIX/$ROS2_DISTRO/setup.bash"
 
-# make sure daikon environment is setup
-source ~/.profile
-
 # build radler house_thermo example
 cd ~/radler 
 git pull

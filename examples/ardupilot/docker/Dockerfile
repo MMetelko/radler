@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     cmake \
     git \
     libbullet-dev \
+    nano \
     python3-flake8 \
     python3-pip \
     python3-pytest-cov \
@@ -84,30 +85,46 @@ RUN apt-get update && apt-get install -y \
 # Download and extract Log4J 
 # Orginally requested version 2.17.2 which is no longer available - moved to 2.24.1 (which is a .zip file)
 RUN apt-get install -y unzip
+ENV APACHELOG4J_VERSION=2.24.1
+ENV APACHELOG4J=apache-log4j-$APACHELOG4J_VERSION.bin
+ENV APACHELOG4JDIR=~/$APACHELOG4J
 RUN cd ~ && \
-    wget https://dlcdn.apache.org/logging/log4j/2.24.1/apache-log4j-2.24.1-bin.zip && \
-    unzip apache-log4j-2.24.1-bin.zip
+    wget https://dlcdn.apache.org/logging/log4j/$APACHELOG4J_VERSION/$APACHELOG4J.zip && \
+    mkdir $APACHELOG4JDIR && \
+    cd $APACHELOG4J && \
+    mv ../$APACHELOG4J.zip . && \ 
+    unzip $APACHELOG4J.zip
 
 #daikon
 RUN apt-get install -y \
     netpbm \
     texinfo \
     texlive
-    
-# From vagrant/setup.bash
+
+# From docker/setup.bash
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/jvm/java-11-openjdk-amd64/lib/server
-ENV DAIKONDIR=~/daikon-5.8.10
-RUN source $DAIKONDIR/scripts/daikon.bashrc
-ENV CLASSPATH=$CLASSPATH:~/daikon-5.8.10/java/daikon:~/radler/examples/ardupilot/jni:~/beepbeep-3-examples/beepbeep-3-examples.jar:~/daikon-5.8.10/daikon.jar:~/daikon-5.8.10/java/dcomp_rt.jar:~/daikon-5.8.10/java/ChicoryPremain.jar:~/daikon-5.8.10/java/dcomp_premain.jar:~/apache-log4j-2.17.2-bin/log4j-api-2.17.2.jar:~/apache-log4j-2.17.2-bin/log4j-core-2.17.2.jar
-ENV PATH=$PATH:~/apache-log4j-2.17.2-bin
+ENV DAIKON_VERSION=5.8.10
+ENV DAIKONDIR=~/daikon-$DAIKON_VERSION
+# From source $DAIKONDIR/scripts/daikon.bashrc
+ENV DAIKONSCRIPTS=$DAIKONDIR/scripts
+ENV PLUMESCRIPTS=$DAIKONDIR/utils/plume-scripts
+ENV DAIKON_CLASSPATH=$DAIKONDIR/daikon.jar:$JAVA_HOME/jre/lib/rt.jar:$JAVA_HOME/lib/tools.jar:$DAIKONDIR/java:$DAIKONDIR/java/lib/*
+ENV PATH=$DAIKONSCRIPTS:$PLUMESCRIPTS:$JAVA_HOME/bin:$PATH
+# PERLLIB is already set to these values, so leaving this out for now
+#ENV PERLLIB=$DAIKONSCRIPTS:${PLUMESCRIPTS}:$PERLLIB
+# From docker/setup.bash (cont.)
+ENV RADLERDIR=~/radler
+ENV CLASSPATH=$CLASSPATH:$DAIKONDIR/java/daikon:$RADLERDIR/examples/ardupilot/jni:~/beepbeep-3-examples/beepbeep-3-examples.jar:$DAIKONDIR/daikon.jar:$DAIKONDIR/java/dcomp_rt.jar:$DAIKONDIR/java/ChicoryPremain.jar:$DAIKONDIR/java/dcomp_premain.jar:$APACHELOG4JDIR/log4j-api-$APACHELOG4J_VERSION.jar:$APACHELOG4JDIR/log4j-core-$APACHELOG4J_VERSION.jar
+ENV PATH=$PATH:$APACHELOG4JDIR
 
 RUN cd ~ && \
-    wget http://plse.cs.washington.edu/daikon/history/daikon-5.8.10/daikon-5.8.10.tar.gz && \
-    tar zxf daikon-5.8.10.tar.gz && \
-    cd daikon-5.8.10 && \
+    wget http://plse.cs.washington.edu/daikon/history/daikon-$DAIKON_VERSION/daikon-$DAIKON_VERSION.tar.gz && \
+    tar zxf daikon-$DAIKON_VERSION.tar.gz && \
+    cd daikon-$DAIKON_VERSION && \
     make rebuild-everything
-RUN echo "\n# Setup for BeepBepp/Log4J/Daikon" >> ~/.profile && \
-    echo "source ~/radler/examples/ardupilot/docker/setup.bash" >> ~/.profile
+# MM - done above
+#RUN echo "\n# Setup for BeepBepp/Log4J/Daikon" >> ~/.profile && \
+#    echo "source $RADLERDIR/examples/ardupilot/docker/setup.bash" >> ~/.profile
 
 #ros2 build
 RUN pip3 install colcon-common-extensions colcon-mixin
@@ -116,10 +133,11 @@ RUN colcon mixin update
 RUN colcon metadata add default https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml 
 RUN colcon metadata update
 #sros2
-RUN sudo apt install -y libssl-dev
+RUN apt install -y libssl-dev
 
 RUN pip3 install tarjan pyyaml pydot
-RUN sudo add-apt-repository ppa:deadsnakes/ppa
+RUN apt-get install -y software-properties-common
+RUN add-apt-repository ppa:deadsnakes/ppa
 RUN apt-get update && sudo apt-get install -y \
     python3.6 \
     python3.6-distutils
@@ -129,8 +147,8 @@ RUN cd ~ && git clone https://github.com/SRI-CSL/radler.git && \
     cd radler && \ 
     git submodule update --init --recursive && \
     git checkout ros2
-RUN sudo mv /opt/ros/foxy/share/mavros/launch /opt/ros/foxy/share/mavros/launch.bak
-RUN sudo cd ~/radler && \
+RUN mv /opt/ros/foxy/share/mavros/launch /opt/ros/foxy/share/mavros/launch.bak
+RUN cd $RADLERDIR && \
     cp -r examples/ardupilot/launch /opt/ros/foxy/share/mavros
 RUN mkdir -p ~/ros2_ws/src
 
