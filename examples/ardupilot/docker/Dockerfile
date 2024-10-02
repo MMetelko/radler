@@ -16,6 +16,7 @@ ENV LANG=en_US.UTF-8
     
 # Update system packages and install necessary tools
 RUN apt-get update && apt-get install -y \
+    binutils-dev \
     build-essential \
     cmake \
     git \
@@ -118,10 +119,9 @@ ENV PATH=$PATH:$APACHELOG4JDIR
 
 RUN cd ~ && \
     wget http://plse.cs.washington.edu/daikon/history/daikon-$DAIKON_VERSION/daikon-$DAIKON_VERSION.tar.gz && \
-    tar zxf daikon-$DAIKON_VERSION.tar.gz
-    #tar zxf daikon-$DAIKON_VERSION.tar.gz && \
-    #cd daikon-$DAIKON_VERSION && \
-    #make rebuild-everything
+    tar zxf daikon-$DAIKON_VERSION.tar.gz && \
+    cd daikon-$DAIKON_VERSION && \
+    make rebuild-everything
 # MM - done above
 #RUN echo "\n# Setup for BeepBepp/Log4J/Daikon" >> ~/.profile && \
 #    echo "source $RADLERDIR/examples/ardupilot/docker/setup.bash" >> ~/.profile
