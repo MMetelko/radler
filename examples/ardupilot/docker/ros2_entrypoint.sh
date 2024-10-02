@@ -1,11 +1,14 @@
 #!/bin/bash
 set -e
 
+# setup ardupilot environment
+source /home/ardupilot/.ardupilot_env
+
 # setup ros2 environment
 source "$ROS2_PREFIX/$ROS2_DISTRO/setup.bash"
 
 # build radler house_thermo example
-cd ~/radler 
+cd /root/radler 
 git pull
 ./radler.sh --ws_dir $ROS2_WS/src compile examples/ardupilot/afs.radl --plant plant --ROS
 cd $ROS2_WS
@@ -35,4 +38,18 @@ ln -sf ../../../../build/afs/afs_log .
 cd -
 
 exec "$@"
+
+# Run sim_vehicle.py
+#sim_vehicle.py -v ArduCopter --console --map -m --out=127.0.0.1:14550
+
+# Run ros2 launch mavros apm.launch.py
+#ros2 launch mavros apm.launch.py
+
+# Run gateway
+#source ~/ros2_ws/install/local_setup.bash
+#~/ros2_ws/install/afs/bin/gateway
+
+# Run afs_battery
+#source ~/ros2_ws/install/local_setup.bash
+#~/ros2_ws/install/afs/bin/afs_battery
 

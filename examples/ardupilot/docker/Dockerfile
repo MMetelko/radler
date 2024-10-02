@@ -8,7 +8,47 @@ RUN echo 'Etc/UTC' > /etc/timezone && \
 
 # Prevent user interaction during package installation
 ARG DEBIAN_FRONTEND=noninteractive
+# From https://github.com/ArduPilot/ardupilot/blob/master/Dockerfile
+ARG USER_NAME=ardupilot
+ARG USER_UID=1000
+ARG USER_GID=1000
 
+ARG SKIP_AP_EXT_ENV=0
+ARG SKIP_AP_GRAPHIC_ENV=1
+ARG SKIP_AP_COV_ENV=1
+ARG SKIP_AP_GIT_CHECK=1
+ARG DO_AP_STM_ENV=1
+
+RUN groupadd ${USER_NAME} --gid ${USER_GID}\
+    && useradd -l -m ${USER_NAME} -u ${USER_UID} -g ${USER_GID} -s /bin/bash
+
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    lsb-release \
+    sudo \
+    tzdata \
+    bash-completion
+
+COPY Tools/environment_install/install-prereqs-ubuntu.sh /ardupilot/Tools/environment_install/
+COPY Tools/completion /ardupilot/Tools/completion/
+
+# Create non root user for pip
+RUN echo "ardupilot ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER_NAME}
+RUN chmod 0440 /etc/sudoers.d/${USER_NAME}
+
+RUN chown -R ${USER_NAME}:${USER_NAME} /${USER_NAME}
+
+USER ${USER_NAME}
+
+RUN SKIP_AP_EXT_ENV=$SKIP_AP_EXT_ENV SKIP_AP_GRAPHIC_ENV=$SKIP_AP_GRAPHIC_ENV SKIP_AP_COV_ENV=$SKIP_AP_COV_ENV SKIP_AP_GIT_CHECK=$SKIP_AP_GIT_CHECK \
+    DO_AP_STM_ENV=$DO_AP_STM_ENV \
+    AP_DOCKER_BUILD=1 \
+    USER=${USER_NAME} \
+    Tools/environment_install/install-prereqs-ubuntu.sh -y
+
+# Check that local/bin are in PATH for pip --user installed package
+RUN echo "if [ -d \"\$HOME/.local/bin\" ] ; then\nPATH=\"\$HOME/.local/bin:\$PATH\"\nfi" >> ~/.ardupilot_env
+
+# Converted from examples/ardupilot/vagran
 # Generate locales
 RUN apt-get update && apt-get install -y locales
 RUN locale-gen en_US en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
@@ -25,7 +65,7 @@ RUN apt-get update && apt-get install -y \
     python3-flake8 \
     python3-pip \
     python3-pytest-cov \
-    python3-setuptools \
+    python3-setuptools \ 
     wget
 
 RUN python3 -m pip install -U \
@@ -70,13 +110,9 @@ RUN apt-get install -y \
     python3-vcstool
 
 # Install GeographicLib datasets
-RUN wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/install_geographiclib_datasets.sh -O ~/install_geographiclib_datasets.sh
-RUN chmod a+x ~/install_geographiclib_datasets.sh
-RUN ~/install_geographiclib_datasets.sh
-RUN echo "\n# Setup for ROS2" >> ~/.bashrc && \
-    echo "source /opt/ros/foxy/setup.bash" >> ~/.bashrc
-RUN echo "\n# Setup for ROS2" >> ~/.profile && \
-    echo "source /opt/ros/foxy/setup.bash" >> ~/.profile
+RUN wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/install_geographiclib_datasets.sh -O /root/install_geographiclib_datasets.sh
+RUN chmod a+x /root/install_geographiclib_datasets.sh
+RUN /root/install_geographiclib_datasets.sh
 
 #beepbeep
 RUN apt-get update && apt-get install -y \
@@ -150,6 +186,11 @@ RUN cd ~ && git clone https://github.com/SRI-CSL/radler.git && \
 RUN mv /opt/ros/foxy/share/mavros/launch /opt/ros/foxy/share/mavros/launch.bak
 RUN cd $RADLERDIR && \
     cp -r examples/ardupilot/launch /opt/ros/foxy/share/mavros
+
+RUN cd ~ && git clone https://github.com/ArduPilot/ardupilot.git && \
+    cd ardupilot && \
+    git submodule update --init --recursive
+
 RUN mkdir -p ~/ros2_ws/src
 
 # From vagrant sros_env.bash
@@ -167,6 +208,7 @@ ENV ROS2_DISTRO="foxy"
 ENV ROS2_PREFIX="/opt/ros"
 WORKDIR $ROS2_WS
 
+ENV CCACHE_MAXSIZE=1G
 COPY ./ros2_entrypoint.sh /
 ENTRYPOINT ["/ros2_entrypoint.sh"]
 CMD ["/bin/bash"]
