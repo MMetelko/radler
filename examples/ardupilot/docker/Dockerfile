@@ -86,25 +86,24 @@ RUN apt-get update && apt-get install -y \
 # Orginally requested version 2.17.2 which is no longer available - moved to 2.24.1 (which is a .zip file)
 RUN apt-get install -y unzip
 ENV APACHELOG4J_VERSION=2.24.1
-ENV APACHELOG4J=apache-log4j-$APACHELOG4J_VERSION.bin
-ENV APACHELOG4JDIR=~/$APACHELOG4J
-RUN cd ~ && \
-    wget https://dlcdn.apache.org/logging/log4j/$APACHELOG4J_VERSION/$APACHELOG4J.zip && \
-    mkdir $APACHELOG4JDIR && \
-    cd $APACHELOG4J && \
-    mv ../$APACHELOG4J.zip . && \ 
+ENV APACHELOG4J=apache-log4j-$APACHELOG4J_VERSION-bin
+ENV APACHELOG4JDIR=/root/$APACHELOG4J
+RUN wget https://dlcdn.apache.org/logging/log4j/$APACHELOG4J_VERSION/$APACHELOG4J.zip
+RUN mkdir $APACHELOG4JDIR
+RUN mv $APACHELOG4J.zip $APACHELOG4JDIR/. 
+RUN cd $APACHELOG4JDIR && \
     unzip $APACHELOG4J.zip
 
 #daikon
 RUN apt-get install -y \
     netpbm \
     texinfo \
-    texlive
+    texlive-full
 
 # From docker/setup.bash
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/jvm/java-11-openjdk-amd64/lib/server
 ENV DAIKON_VERSION=5.8.10
-ENV DAIKONDIR=~/daikon-$DAIKON_VERSION
+ENV DAIKONDIR=/root/daikon-$DAIKON_VERSION
 # From source $DAIKONDIR/scripts/daikon.bashrc
 ENV DAIKONSCRIPTS=$DAIKONDIR/scripts
 ENV PLUMESCRIPTS=$DAIKONDIR/utils/plume-scripts
@@ -113,15 +112,16 @@ ENV PATH=$DAIKONSCRIPTS:$PLUMESCRIPTS:$JAVA_HOME/bin:$PATH
 # PERLLIB is already set to these values, so leaving this out for now
 #ENV PERLLIB=$DAIKONSCRIPTS:${PLUMESCRIPTS}:$PERLLIB
 # From docker/setup.bash (cont.)
-ENV RADLERDIR=~/radler
-ENV CLASSPATH=$CLASSPATH:$DAIKONDIR/java/daikon:$RADLERDIR/examples/ardupilot/jni:~/beepbeep-3-examples/beepbeep-3-examples.jar:$DAIKONDIR/daikon.jar:$DAIKONDIR/java/dcomp_rt.jar:$DAIKONDIR/java/ChicoryPremain.jar:$DAIKONDIR/java/dcomp_premain.jar:$APACHELOG4JDIR/log4j-api-$APACHELOG4J_VERSION.jar:$APACHELOG4JDIR/log4j-core-$APACHELOG4J_VERSION.jar
+ENV RADLERDIR=/root/radler
+ENV CLASSPATH=$CLASSPATH:$DAIKONDIR/java/daikon:$RADLERDIR/examples/ardupilot/jni:/root/beepbeep-3-examples/beepbeep-3-examples.jar:$DAIKONDIR/daikon.jar:$DAIKONDIR/java/dcomp_rt.jar:$DAIKONDIR/java/ChicoryPremain.jar:$DAIKONDIR/java/dcomp_premain.jar:$APACHELOG4JDIR/log4j-api-$APACHELOG4J_VERSION.jar:$APACHELOG4JDIR/log4j-core-$APACHELOG4J_VERSION.jar
 ENV PATH=$PATH:$APACHELOG4JDIR
 
 RUN cd ~ && \
     wget http://plse.cs.washington.edu/daikon/history/daikon-$DAIKON_VERSION/daikon-$DAIKON_VERSION.tar.gz && \
-    tar zxf daikon-$DAIKON_VERSION.tar.gz && \
-    cd daikon-$DAIKON_VERSION && \
-    make rebuild-everything
+    tar zxf daikon-$DAIKON_VERSION.tar.gz
+    #tar zxf daikon-$DAIKON_VERSION.tar.gz && \
+    #cd daikon-$DAIKON_VERSION && \
+    #make rebuild-everything
 # MM - done above
 #RUN echo "\n# Setup for BeepBepp/Log4J/Daikon" >> ~/.profile && \
 #    echo "source $RADLERDIR/examples/ardupilot/docker/setup.bash" >> ~/.profile
