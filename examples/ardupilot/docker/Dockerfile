@@ -209,8 +209,8 @@ ENV ROS2_PREFIX="/opt/ros"
 WORKDIR $ROS2_WS
 
 ENV CCACHE_MAXSIZE=1G
-COPY ./ros2_entrypoint.sh /
-ENTRYPOINT ["/ros2_entrypoint.sh"]
+COPY ./ardupilot_entrypoint.sh /
+ENTRYPOINT ["/ardupilot_entrypoint.sh"]
 CMD ["/bin/bash"]
 
 # MM: What did not convert .... keep for debugging
