@@ -2,8 +2,7 @@
 set -e
 
 # setup ardupilot environment
-export ARDUPILOT_ENTRYPOINT="/home/${USER_NAME}/ardupilot_entrypoint.sh"
-source /home/${USER_NAME}/.ardupilot_env
+source /home/${USER}/.ardupilot_env
 
 # setup ros2 environment
 source "$ROS2_PREFIX/$ROS2_DISTRO/setup.bash"
