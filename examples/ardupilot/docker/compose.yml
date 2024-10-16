@@ -1,16 +1,15 @@
+#MM: work in progress - expect "command" to disappear as ardupilot_entrypoint.sh includes multiple windows
 services:
   ardupilot:
-    image: DesCertPhase2ArduPilot:latest
-    #MM Stopped here (need to determine from example readme information)
-    command: ros2 launch house_thermo house_thermo.plant.house_computer.launch.py
-    #depends_on:
-    #  - house_heater
-    volumes:
-      - ./house_thermo_data:/tmp/ros2_ws/data
-    networks:
-      - ardupilot_ros_network
+    image: radlerardupilot:latest
+    command: sim_vehicle.py -v ArduCopter --console --map -m --out=127.0.0.1:14550
+    ports:
+      - "8090:8090"
 
-networks:
-  ardupilot_ros_network:
-    driver: bridge
+  novnc:
+    image: "novnc:ardupilot"
+    depends_on:
+      - "ardupilot"
+    network_mode: "service:ardupilot"
+
 
