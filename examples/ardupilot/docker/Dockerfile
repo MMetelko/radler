@@ -225,7 +225,11 @@ RUN cd $RADLERDIR && \
 RUN sudo mv /opt/ros/foxy/share/mavros/launch /opt/ros/foxy/share/mavros/launch.bak
 RUN sudo cp -r ${RADLERDIR}/examples/ardupilot/launch /opt/ros/foxy/share/mavros
 
+# Remove ModemManger due to warning during vehicle sim run
+RUN sudo apt-get remove -y modemmanager
+
 # Cleanup
+RUN sudo apt-get autoremove -y
 RUN sudo apt-get clean \
     && sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
