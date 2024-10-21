@@ -1,15 +1,9 @@
 #MM: work in progress - expect "command" to disappear as ardupilot_entrypoint.sh includes multiple windows
 services:
-  ardupilot:
-    image: radlerardupilot:latest
-    command: sim_vehicle.py -v ArduCopter --console --map -m --out=127.0.0.1:14550
+  novnc-ardupilot:
+    image: radler/ardupilot:novnc
     ports:
       - "8090:8090"
 
-  novnc:
-    image: "novnc:ardupilot"
-    depends_on:
-      - "ardupilot"
-    network_mode: "service:ardupilot"
 
 

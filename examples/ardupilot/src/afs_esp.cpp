@@ -19,7 +19,7 @@ AFS_esp::AFS_esp()
   options = new JavaVMOption[2];
   string cp = "-Djava.class.path=" + getEnvVar("CLASSPATH");
   options[0].optionString = const_cast<char*>(cp.c_str());
-  options[1].optionString = "-Djava.compiler=NONE";
+  options[1].optionString = const_cast<char*>("-Djava.compiler=NONE");
   vm_args.nOptions = 2;
   vm_args.options = options;
   vm_args.ignoreUnrecognized = JNI_TRUE;

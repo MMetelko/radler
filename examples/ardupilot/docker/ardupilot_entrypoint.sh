@@ -1,5 +1,20 @@
 #!/bin/bash
-set -e
+set -ex
+
+RUN_FLUXBOX=${RUN_FLUXBOX:-yes}
+RUN_XTERM=${RUN_XTERM:-yes}
+
+case $RUN_FLUXBOX in
+  false|no|n|0)
+    rm -f /app/conf.d/fluxbox.conf
+    ;;
+esac
+
+case $RUN_XTERM in
+  false|no|n|0)
+    rm -f /app/conf.d/xterm.conf
+    ;;
+esac
 
 # setup ardupilot environment
 source ~/.ardupilot_env
@@ -40,7 +55,9 @@ ln -sf ../../../../build/afs/afs_esp .
 ln -sf ../../../../build/afs/afs_log .
 cd /ardupilot
 
-exec "$@"
+
+exec supervisord -c /app/supervisord.conf
+#exec "$@"
 
 # Run sim_vehicle.py
 #sim_vehicle.py -v ArduCopter --console --map -m --out=127.0.0.1:14550

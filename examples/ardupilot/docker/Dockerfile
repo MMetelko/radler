@@ -102,6 +102,24 @@ RUN apt-get install -y \
     libssl-dev \
     unzip
 
+RUN apt-get install -y \
+    valgrind \
+    gdb \
+    perl
+
+# enable permissive ptrace: (from Tools/vagrant/initvagrant.sh) - did not build so left out (MM)
+#RUN perl -pe 's/kernel.yama.ptrace_scope = ./kernel.yama.ptrace_scope = 0/' -i /etc/sysctl.d/10-ptrace.conf
+#RUN echo 0 > /proc/sys/kernel/yama/ptrace_scope
+
+# Installs for MAVproxy
+RUN apt-get install -y \
+    python3-dev \
+    python3-opencv \
+    python3-wxgtk4.0 \ 
+    python3-matplotlib \
+    python3-lxml \
+    python3-pygame
+
 # Install ROS2
 RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - 
 RUN sh -c 'echo "deb [arch=$(dpkg --print-architecture)] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list' 
@@ -138,6 +156,12 @@ ENV ROS2_PREFIX="/opt/ros"
 ENV ROS2_WS="/home/${USER_NAME}/ros2_ws"
 RUN mkdir -p /home/${USER_NAME}/ros2_ws/src
 
+# Setup shell configurations
+RUN sh -c '(echo ; echo "# Setup shell configurations" ; echo "source /ardupilot/Tools/completion/completion.bash") >> ~/.bashrc'
+RUN sh -c '(echo "source /ardupilot/Tools/vagrant/bashrc_git") >> ~/.bashrc'
+RUN sh -c '(echo ; echo "# Setup for ROS2" ; echo "source /opt/ros/foxy/setup.bash") >> ~/.bashrc'
+RUN sh -c '(echo ; echo "# Setup for ROS2" ; echo "source /opt/ros/foxy/setup.bash") >> ~/.profile'
+
 # Set the buildlogs directory into /tmp as other directory aren't accessible
 ENV BUILDLOGS=/tmp/buildlogs
 
@@ -159,9 +183,6 @@ RUN python3 -m pip install -U --user \
 RUN wget https://raw.githubusercontent.com/mavlink/mavros/ros2/mavros/scripts/install_geographiclib_datasets.sh -O ~/install_geographiclib_datasets.sh
 RUN chmod a+x ~/install_geographiclib_datasets.sh
 RUN sudo ~/install_geographiclib_datasets.sh
-
-RUN sh -c '(echo ; echo "# Setup for ROS2" ; echo "source /opt/ros/foxy/setup.bash") >> ~/.bashrc'
-RUN sh -c '(echo ; echo "# Setup for ROS2" ; echo "source /opt/ros/foxy/setup.bash") >> ~/.profile'
 
 # Download and extract Log4J 
 # Originally requested version 2.17.2 which is no longer available - moved to 2.24.1 (which is a .zip file)
@@ -194,11 +215,7 @@ RUN wget http://plse.cs.washington.edu/daikon/history/daikon-$DAIKON_VERSION/dai
 RUN mv daikon-$DAIKON_VERSION.tar.gz ~/daikon-$DAIKON_VERSION.tar.gz
 RUN cd ~/ && tar zxf daikon-$DAIKON_VERSION.tar.gz
 RUN cd ~/ && rm daikon-$DAIKON_VERSION.tar.gz
-#RUN sudo -E sh -c 'cd $DAIKONDIR && make rebuild-everything'
 RUN cd $DAIKONDIR && make rebuild-everything
-# MM - done above
-#RUN echo "\n# Setup for BeepBepp/Log4J/Daikon" >> ~/.profile && \
-#    echo "source $RADLERDIR/examples/ardupilot/docker/setup.bash" >> ~/.profile
 
 #ros2 build
 RUN pip3 install colcon-common-extensions colcon-mixin
@@ -228,6 +245,67 @@ RUN sudo cp -r ${RADLERDIR}/examples/ardupilot/launch /opt/ros/foxy/share/mavros
 # Remove ModemManger due to warning during vehicle sim run
 RUN sudo apt-get remove -y modemmanager
 
+# Setup NoVNC
+#I nstall git, supervisor, VNC, & X11 packages
+RUN sudo apt-get install -y \
+    bash \
+    dbus-x11 \
+    fluxbox \
+    git \
+    gpg \
+    #libarchive-tools \
+    #libswt-gtk-4-jni \
+    net-tools \
+    novnc \
+    #openjdk-17-jre-headless \
+    procps \
+    supervisor \
+    #unzip \
+    vim \
+    wget \
+    xdg-utils \
+    x11vnc \
+    xterm \
+    xvfb
+    #zip; \
+
+#RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-chrome.gpg 
+#RUN echo "deb [signed-by=/usr/share/keyrings/google-chrome.gpg, arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+#    apt-get update \
+#    apt-get install -y google-chrome-stable
+
+#COPY chromePreferences /root/Downloads/
+
+RUN mkdir -p /home/${USER_NAME}/.fluxbox
+RUN sudo mkdir -p /usr/local/share/fluxbox/styles
+
+COPY fluxbox/config/* /home/${USER_NAME}/.fluxbox/
+COPY fluxbox/styles/ /usr/local/share/fluxbox/styles/
+COPY app /app/
+RUN sudo chown -R ${USER_NAME}:${USER_NAME} /app
+RUN chmod +x /app/scripts/launch_ros2_*
+
+# Setup demo environment variables
+## MM: left out for now - HOME=/root \
+ENV DISPLAY=:0.0 \
+    DISPLAY_WIDTH=1920 \
+    DISPLAY_HEIGHT=1080 \
+    #JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    LANG=en_US.UTF-8 \
+    LANGUAGE=en_US.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    RUN_FLUXBOX=yes
+
+#ENV PATH="$JAVA_HOME/bin:$PATH"
+
+#RUN cp -r /root/.fluxbox /home/ardupilot && \
+#    useradd -d /home/ardupilot -s /bin/bash ardupilot && \
+#    chown -R ardupilot:ardupilot /home/ardupilot
+    #mkdir -p /home/ardupilot/.config/google-chrome/Default && \
+    #mv /root/Downloads/chromePreferences /home/ardupilot/.config/google-chrome/Default/Preferences
+
+EXPOSE 8090
+
 # Cleanup
 RUN sudo apt-get autoremove -y
 RUN sudo apt-get clean \
@@ -240,12 +318,3 @@ COPY ardupilot_entrypoint.sh /ardupilot_entrypoint.sh
 RUN sudo chown ${USER_NAME}:${USER_NAME} /ardupilot_entrypoint.sh
 ENTRYPOINT ["/ardupilot_entrypoint.sh"]
 CMD ["bash"]
-
-
-# Things to consider adding that are in Tools/vagrant/initvagrant.sh
-# apt install gdb, automake, autoconf, libexpat1-dev, libtool (libtool-bin is installed)
-# enable permissive ptrace perl commands
-# DEFINITELY CONSIDER THIS: add Tools/scripts/build-jsbsim.sh and run it - but consider how to clone repo first
-# Look at DOT_PROFILE section and shellinit.sh
-# Not sure what is needed for the bashrc code set - this section extend .bashrc file for git formatting (put later, if needed)
-# touch /ardupilot.vagrant - not sure needed
