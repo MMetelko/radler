@@ -47,14 +47,14 @@ ros2 security create_key sros2_keys /afs/afs_esp
 ros2 security create_key sros2_keys /afs/afs_log
 
 # From vagrant sros_env.bash
-mkdir -p ~/radler/install/afs/lib/afs
-cd ~/radler/install/afs/lib/afs
-ln -sf ../../../../build/afs/gateway .
-ln -sf ../../../../build/afs/afs_battery .
-ln -sf ../../../../build/afs/afs_esp .
-ln -sf ../../../../build/afs/afs_log .
+#mkdir -p $ROS2_WS/install/afs/lib/afs
+mkdir -p $ROS2_WS/install/afs/bin
+cd $ROS2_WS/install/afs/bin
+ln -sf ../../../build/afs/gateway .
+ln -sf ../../../build/afs/afs_battery .
+ln -sf ../../../build/afs/afs_esp .
+ln -sf ../../../build/afs/afs_log .
 cd /ardupilot
-
 
 exec supervisord -c /app/supervisord.conf
 #exec "$@"
