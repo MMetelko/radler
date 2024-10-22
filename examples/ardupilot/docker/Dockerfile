@@ -13,7 +13,6 @@ ARG SKIP_AP_COV_ENV=1
 ARG SKIP_AP_GIT_CHECK=1
 ARG DO_AP_STM_ENV=1
 
-
 # setup timezone
 RUN echo 'Etc/UTC' > /etc/timezone && \
     ln -s /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
@@ -246,35 +245,23 @@ RUN sudo cp -r ${RADLERDIR}/examples/ardupilot/launch /opt/ros/foxy/share/mavros
 RUN sudo apt-get remove -y modemmanager
 
 # Setup NoVNC
-#I nstall git, supervisor, VNC, & X11 packages
+#Install git, supervisor, VNC, & X11 packages
 RUN sudo apt-get install -y \
     bash \
     dbus-x11 \
     fluxbox \
     git \
     gpg \
-    #libarchive-tools \
-    #libswt-gtk-4-jni \
     net-tools \
     novnc \
-    #openjdk-17-jre-headless \
     procps \
     supervisor \
-    #unzip \
     vim \
     wget \
     xdg-utils \
     x11vnc \
     xterm \
     xvfb
-    #zip; \
-
-#RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-chrome.gpg 
-#RUN echo "deb [signed-by=/usr/share/keyrings/google-chrome.gpg, arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-#    apt-get update \
-#    apt-get install -y google-chrome-stable
-
-#COPY chromePreferences /root/Downloads/
 
 RUN mkdir -p /home/${USER_NAME}/.fluxbox
 RUN sudo mkdir -p /usr/local/share/fluxbox/styles
@@ -283,26 +270,15 @@ COPY fluxbox/config/* /home/${USER_NAME}/.fluxbox/
 COPY fluxbox/styles/ /usr/local/share/fluxbox/styles/
 COPY app /app/
 RUN sudo chown -R ${USER_NAME}:${USER_NAME} /app
-RUN chmod +x /app/scripts/launch_ros2_*
 
 # Setup demo environment variables
-## MM: left out for now - HOME=/root \
 ENV DISPLAY=:0.0 \
     DISPLAY_WIDTH=1920 \
     DISPLAY_HEIGHT=1080 \
-    #JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
     LANG=en_US.UTF-8 \
     LANGUAGE=en_US.UTF-8 \
     LC_ALL=C.UTF-8 \
     RUN_FLUXBOX=yes
-
-#ENV PATH="$JAVA_HOME/bin:$PATH"
-
-#RUN cp -r /root/.fluxbox /home/ardupilot && \
-#    useradd -d /home/ardupilot -s /bin/bash ardupilot && \
-#    chown -R ardupilot:ardupilot /home/ardupilot
-    #mkdir -p /home/ardupilot/.config/google-chrome/Default && \
-    #mv /root/Downloads/chromePreferences /home/ardupilot/.config/google-chrome/Default/Preferences
 
 EXPOSE 8090
 

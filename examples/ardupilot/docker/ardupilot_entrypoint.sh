@@ -47,7 +47,6 @@ ros2 security create_key sros2_keys /afs/afs_esp
 ros2 security create_key sros2_keys /afs/afs_log
 
 # From vagrant sros_env.bash
-#mkdir -p $ROS2_WS/install/afs/lib/afs
 mkdir -p $ROS2_WS/install/afs/bin
 cd $ROS2_WS/install/afs/bin
 ln -sf ../../../build/afs/gateway .
@@ -57,19 +56,6 @@ ln -sf ../../../build/afs/afs_log .
 cd /ardupilot
 
 exec supervisord -c /app/supervisord.conf
-#exec "$@"
 
-# Run sim_vehicle.py
-#sim_vehicle.py -v ArduCopter --console --map -m --out=127.0.0.1:14550
-
-# Run ros2 launch mavros apm.launch.py
-#ros2 launch mavros apm.launch.py
-
-# Run gateway
-#source ~/ros2_ws/install/local_setup.bash
-#~/ros2_ws/install/afs/bin/gateway
-
-# Run afs_battery
-#source ~/ros2_ws/install/local_setup.bash
-#~/ros2_ws/install/afs/bin/afs_battery
+# See xterm.conf under app/conf.d to see the commands for the 4 different windows
 
