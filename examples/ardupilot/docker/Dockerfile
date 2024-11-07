@@ -282,6 +282,9 @@ ENV DISPLAY=:0.0 \
 
 EXPOSE 8090
 
+# Build the ardupilot SITL simulator
+RUN /${USER_NAME}/Tools/autotest/sim_vehicle.py --build-only
+
 # Cleanup
 RUN sudo apt-get autoremove -y
 RUN sudo apt-get clean \
