@@ -19,9 +19,6 @@ esac
 # setup ardupilot environment
 source ~/.ardupilot_env
 
-# Finish pulling the ardupilot repository
-git submodule update --init --recursive
-
 # setup ros2 environment
 source "$ROS2_PREFIX/$ROS2_DISTRO/setup.bash"
 

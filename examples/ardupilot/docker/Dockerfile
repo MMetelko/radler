@@ -283,7 +283,10 @@ ENV DISPLAY=:0.0 \
 EXPOSE 8090
 
 # Build the ardupilot SITL simulator
-RUN /${USER_NAME}/Tools/autotest/sim_vehicle.py --build-only
+# Finish pulling the ardupilot repository
+RUN git submodule update --init --recursive
+RUN ./waf configure --board sitl && ./waf build --target bin/arducopter
+ENV PATH=$PATH:/ardupilot/build/sitl/bin
 
 # Cleanup
 RUN sudo apt-get autoremove -y
