@@ -42,6 +42,9 @@ position 100 100 0
 
 >Note: the commands that run in each of the xterm windows can be found in app/conf.d/xterm.conf file
 
+The battery can be reset by typing `batreset` in the "Vehicle Sim" windows.
+
+
 ## Acknowledgements
 
 The docker file setup for the ArduPilot simulation was created analyzing both the https://github.com/ArduPilot/ardupilot and https://github.com/SRI-CSL/radler repositories.  Files referenced were setups related to the vagrant environment and the Dockerfile that already existed but did not have to complete simulation environment.  The NoVNC elements utilized the https://github.com/theasp/docker-novnc repository example.
