@@ -185,7 +185,7 @@ RUN sudo ~/install_geographiclib_datasets.sh
 
 # Download and extract Log4J 
 # Originally requested version 2.17.2 which is no longer available - moved to 2.24.1 (which is a .zip file)
-ENV APACHELOG4J_VERSION=2.24.1
+ENV APACHELOG4J_VERSION=2.24.3
 ENV APACHELOG4J=apache-log4j-$APACHELOG4J_VERSION-bin
 ENV APACHELOG4JDIR=/home/${USER_NAME}/$APACHELOG4J
 RUN wget https://dlcdn.apache.org/logging/log4j/$APACHELOG4J_VERSION/$APACHELOG4J.zip
@@ -229,6 +229,9 @@ RUN sudo add-apt-repository ppa:deadsnakes/ppa
 RUN sudo apt-get update && sudo apt-get install -y python3.6
 RUN sudo apt-get install -y python3.6-distutils
 RUN sudo python3.6 -m pip install tarjan
+
+# For script running of Ardupilot
+RUN pip3 install dronekit
 
 # Put all radler build setup in ~/radler
 #RUN git clone https://github.com/SRI-CSL/radler.git
@@ -288,6 +291,35 @@ RUN git submodule update --init --recursive
 RUN ./waf configure --board sitl && ./waf build --target bin/arducopter
 ENV PATH=$PATH:/ardupilot/build/sitl/bin
 
+# setup ardupilot environment - build Radler
+RUN /bin/bash -c "source /home/${USER_NAME}/.ardupilot_env && \
+    # setup ros2 environment
+    source ${ROS2_PREFIX}/${ROS2_DISTRO}/setup.bash && \
+    # build radler house_thermo example
+    cd /home/${USER_NAME}/radler && \
+    git pull && \
+    ./radler.sh --ws_dir ${ROS2_WS}/src compile examples/ardupilot/afs.radl --plant plant --ROS && \
+    cd ${ROS2_WS} && \
+    colcon build --cmake-args -DSECURITY=ON --no-warn-unused-cli --symlink-install && \
+    source ${ROS2_WS}/install/local_setup.bash && \
+    #sros2
+    # From vagrant/sros_keystore.bash
+    cd /home/${USER_NAME} && \
+    ros2 security create_keystore sros2_keys && \
+    ros2 security create_key sros2_keys /afs/mavros && \
+    ros2 security create_key sros2_keys /afs/gateway && \
+    ros2 security create_key sros2_keys /afs/afs_battery && \
+    ros2 security create_key sros2_keys /afs/afs_esp && \
+    ros2 security create_key sros2_keys /afs/afs_log"
+
+# From vagrant sros_env.bash
+RUN mkdir -p ${ROS2_WS}/install/afs/bin
+RUN cd ${ROS2_WS}/install/afs/bin && \
+    ln -sf ../../../build/afs/gateway . && \
+    ln -sf ../../../build/afs/afs_battery . && \
+    ln -sf ../../../build/afs/afs_esp . && \
+    ln -sf ../../../build/afs/afs_log .
+    
 # Cleanup
 RUN sudo apt-get autoremove -y
 RUN sudo apt-get clean \

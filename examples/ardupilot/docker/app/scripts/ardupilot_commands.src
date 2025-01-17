@@ -1,0 +1,4 @@
+mode guided
+arm throttle
+takeoff 30
+position 100 100 0
