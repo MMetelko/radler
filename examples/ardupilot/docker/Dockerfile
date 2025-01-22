@@ -268,11 +268,12 @@ RUN sudo apt-get install -y \
 
 RUN mkdir -p /home/${USER_NAME}/.fluxbox
 RUN sudo mkdir -p /usr/local/share/fluxbox/styles
+RUN mkdir /app-novnc
 
 COPY fluxbox/config/* /home/${USER_NAME}/.fluxbox/
 COPY fluxbox/styles/ /usr/local/share/fluxbox/styles/
-COPY app /app/
-RUN sudo chown -R ${USER_NAME}:${USER_NAME} /app
+COPY app /app-novnc/
+RUN sudo chown -R ${USER_NAME}:${USER_NAME} /app-novnc
 
 # Setup demo environment variables
 ENV DISPLAY=:0.0 \

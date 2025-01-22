@@ -6,13 +6,13 @@ RUN_XTERM=${RUN_XTERM:-yes}
 
 case $RUN_FLUXBOX in
   false|no|n|0)
-    rm -f /app/conf.d/fluxbox.conf
+    rm -f /app-novnc/conf.d/fluxbox.conf
     ;;
 esac
 
 case $RUN_XTERM in
   false|no|n|0)
-    rm -f /app/conf.d/xterm.conf
+    rm -f /app-novnc/conf.d/xterm.conf
     ;;
 esac
 
@@ -25,7 +25,7 @@ source "$ROS2_WS/install/local_setup.bash"
 
 cd /ardupilot
 
-exec supervisord -c /app/supervisord.conf
+exec supervisord -c /app-novnc/supervisord.conf
 
 # See xterm.conf under app/conf.d to see the commands for the 4 different windows
 
