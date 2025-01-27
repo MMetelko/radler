@@ -1,10 +1,8 @@
+import argparse
 from dronekit import connect, VehicleMode, LocationGlobalRelative
 import time
 from math import radians, sin, cos
 
-# Connect to the vehicle (ARDUPILOT SIMULATOR)
-print("Connecting to vehicle on: '127.0.0.1:14550'")
-vehicle = connect('127.0.0.1:14550', wait_ready=True)
 
 def arm_and_takeoff(aTargetAltitude):
     """
@@ -83,32 +81,91 @@ def land_and_wait_for_altitude(vehicle):
             break
         time.sleep(1)
 
+def run_sim(vehicle, vertMovement, hortMovement, altitude):
+    # Main script starts here
+    try:
+        print("Changing to GUIDED mode")
+        vehicle.mode = VehicleMode("GUIDED")
+        while vehicle.mode != 'GUIDED':
+            print(" Waiting for GUIDED mode...")
+            time.sleep(1)
 
-# Main script starts here
-try:
-    print("Changing to GUIDED mode")
-    vehicle.mode = VehicleMode("GUIDED")
-    while vehicle.mode != 'GUIDED':
-        print(" Waiting for GUIDED mode...")
-        time.sleep(1)
+        print("Arming the vehicle")
+        vehicle.armed = True
+        while not vehicle.armed:
+            print(" Waiting for arming...")
+            time.sleep(1)
 
-    print("Arming the vehicle")
-    vehicle.armed = True
-    while not vehicle.armed:
-        print(" Waiting for arming...")
-        time.sleep(1)
+        print("Taking off to indicated altitude (in meters)")
+        arm_and_takeoff(altitude)
 
-    print("Taking off to 30 meters altitude")
-    arm_and_takeoff(30)
+        time.sleep(10)
 
-    time.sleep(10)
+        print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
+        goto_position_ned(vehicle, vertMovement, hortMovement, 0)
 
-    print("Flying to relative position NED (100, 100, 0)")
-    goto_position_ned(vehicle, 100, 100, 0)
+        #MM TODO: this may interfere with Radler battery low actions - checkout later
+        #land_and_wait_for_altitude(vehicle)
 
-    #MM TODO: this may interfere with Radler battery low actions - checkout later
-    #land_and_wait_for_altitude(vehicle)
+    #MM TODO: does this belong here?  or up a level?
+    #finally:
+    #    vehicle.close()
+    #    print("Completed vehicle operations.")
 
-finally:
-    vehicle.close()
-    print("Completed vehicle operations.")
+def batt_reset(vehicle):
+    pass
+    #vehicle.parameters['SIM_BATT_CAPACITY'] = 1000
+
+
+def main():
+    # Create the parser
+    parser = argparse.ArgumentParser(description="Running Ardupilot Flight Sequence with dronekit API")
+
+    # Add the arguments
+    parser.add_argument('--vertMovement', type=int, choices=range(-100, 101), default=100,
+                        help="Relative Vertical movement (-100 to 100), default is 100")
+    parser.add_argument('--hortMovement', type=int, choices=range(-100, 101), default=100,
+                        help="Relative Horizontal movement (-100 to 100), default is 100")
+    parser.add_argument('--altitude', type=int, choices=range(30, 51), default=30,
+                        help="Altitude in meters (10 to 50), default of 30")
+    parser.add_argument('--reset', action='store_true',
+                        help="Reset the system battery")
+    parser.add_argument('--runSimulation', action='store_true',
+                        help="Run the simulation")
+
+    # Parse the arguments
+    args = parser.parse_args()
+
+    # Connect to the vehicle (ARDUPILOT SIMULATOR)
+    print("Connecting to vehicle on: '127.0.0.1:14550'")
+    vehicle = connect('127.0.0.1:14550', wait_ready=True)
+
+    # Process the arguments
+    if args.reset:
+        batt_reset()
+        print("System Battery Power is reset")
+        return
+
+    if args.runSimulation:
+        print("Running simulation with:")
+        print(f"Vertical Movement: {args.vertMovement}")
+        print(f"Horizontal Movement: {args.hortMovement}")
+        print(f"Altitude: {args.altitude} meters")
+        run_sim(vehicle, args.vertMovement, args.hortMovement, args.altitude)
+        
+    #MM TODO: for debugging
+    # Print the currently available flight modes
+    print("Supported modes: ", vehicle.mode_mapping())
+
+# Entry point
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
+
+
+
