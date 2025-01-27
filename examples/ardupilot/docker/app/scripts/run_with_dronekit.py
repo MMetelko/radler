@@ -4,7 +4,7 @@ import time
 from math import radians, sin, cos
 
 
-def arm_and_takeoff(aTargetAltitude):
+def arm_and_takeoff(vehicle, aTargetAltitude):
     """
     Arms the vehicle and flies to aTargetAltitude.
     """
@@ -96,8 +96,8 @@ def run_sim(vehicle, vertMovement, hortMovement, altitude):
             print(" Waiting for arming...")
             time.sleep(1)
 
-        print("Taking off to indicated altitude (in meters)")
-        arm_and_takeoff(altitude)
+        print(f"Taking off to indicated altitude of {altitude} (in meters)")
+        arm_and_takeoff(vehicle, altitude)
 
         time.sleep(10)
 
@@ -108,9 +108,9 @@ def run_sim(vehicle, vertMovement, hortMovement, altitude):
         #land_and_wait_for_altitude(vehicle)
 
     #MM TODO: does this belong here?  or up a level?
-    #finally:
-    #    vehicle.close()
-    #    print("Completed vehicle operations.")
+    finally:
+    #   vehicle.close()
+        print("Completed vehicle operations.")
 
 def batt_reset(vehicle):
     pass
@@ -122,12 +122,12 @@ def main():
     parser = argparse.ArgumentParser(description="Running Ardupilot Flight Sequence with dronekit API")
 
     # Add the arguments
-    parser.add_argument('--vertMovement', type=int, choices=range(-100, 101), default=100,
-                        help="Relative Vertical movement (-100 to 100), default is 100")
-    parser.add_argument('--hortMovement', type=int, choices=range(-100, 101), default=100,
-                        help="Relative Horizontal movement (-100 to 100), default is 100")
-    parser.add_argument('--altitude', type=int, choices=range(30, 51), default=30,
-                        help="Altitude in meters (10 to 50), default of 30")
+    parser.add_argument('--vertMovement', type=int, choices=range(-100, 101), default=100, metavar='[-100 to 100]',
+                        help="Relative Vertical movement, default is 100")
+    parser.add_argument('--hortMovement', type=int, choices=range(-100, 101), default=100, metavar='[-100 to 100]',
+                        help="Relative Horizontal movement, default is 100")
+    parser.add_argument('--altitude', type=int, choices=range(30, 51), default=30, metavar='[30 to 50]',
+                        help="Altitude in meters, default of 30")
     parser.add_argument('--reset', action='store_true',
                         help="Reset the system battery")
     parser.add_argument('--runSimulation', action='store_true',
