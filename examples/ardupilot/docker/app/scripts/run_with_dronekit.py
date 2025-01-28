@@ -155,7 +155,7 @@ def main():
         
     #MM TODO: for debugging
     # Print the currently available flight modes
-    print("Supported modes: ", vehicle.mode_mapping())
+    #print("Supported modes: ", vehicle.mode_mapping())
 
 # Entry point
 if __name__ == "__main__":
