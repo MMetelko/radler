@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import argparse
 from dronekit import connect, VehicleMode, LocationGlobalRelative
 import time
