@@ -12,7 +12,7 @@ def arm_and_takeoff(vehicle, aTargetAltitude):
     """
     print("Basic pre-arm checks")
     while not vehicle.is_armable:
-        print(" Waiting for vehicle to initialise...")
+        print(" Waiting for vehicle to initialize...")
         time.sleep(1)
 
     print("Arming motors")
@@ -98,7 +98,7 @@ def run_sim(vehicle, vertMovement, hortMovement, altitude):
             print(" Waiting for arming...")
             time.sleep(1)
 
-        print(f"Taking off to indicated altitude of {altitude} (in meters)")
+        print(f"Taking oinitialize...ff to indicated altitude of {altitude} (in meters)")
         arm_and_takeoff(vehicle, altitude)
 
         time.sleep(10)
