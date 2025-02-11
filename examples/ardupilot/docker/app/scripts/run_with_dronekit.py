@@ -46,7 +46,7 @@ class DroneController:
                 break
             time.sleep(1)
 
-    def get_location_offset_meters(original_location, dNorth, dEast, altDelta):
+    def get_location_offset_meters(self, original_location, dNorth, dEast, altDelta):
         """
         Returns a LocationGlobalRelative object containing the latitude/longitude `dNorth` and `dEast` meters from the
         specified `original_location`. The returned Location has the same `altDelta` value as `original_location`.
@@ -68,7 +68,7 @@ class DroneController:
         Move the vehicle to a position `dNorth` and `dEast` meters away from the current position, maintaining altitude change `dAlt`.
         """
         current_location = self.vehicle.location.global_relative_frame
-        target_location = get_location_offset_meters(current_location, dNorth, dEast, dAlt)
+        target_location = self.get_location_offset_meters(current_location, dNorth, dEast, dAlt)
         print(f"Moving to position (NORTH: {dNorth}m, EAST: {dEast}m, ALT: {dAlt}m)")
         self.vehicle.simple_goto(target_location)
         # Adjust time to ensure vehicle reaches the target
@@ -108,38 +108,36 @@ class DroneController:
                 print(" Waiting for arming...")
                 time.sleep(1)
 
-            print(f"Taking oinitialize...ff to indicated altitude of {altitude} (in meters)")
-            arm_and_takeoff(self, altitude)
+            print(f"Taking off to indicated altitude of {altitude} (in meters)")
+            self.arm_and_takeoff(altitude)
 
             time.sleep(10)
 
             print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
-            goto_position_ned(self, vertMovement, hortMovement, 0)
+            self.goto_position_ned(vertMovement, hortMovement, 0)
 
             #MM TODO: this may interfere with Radler battery low actions - checkout later
-            #land_and_wait_for_altitude(vehicle)
-
-        #MM TODO: does this belong here?  or up a level?
+            #self.land_and_wait_for_altitude()
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            
         finally:
-        #   vehicle.close()
             print("Completed vehicle operations.")
-
-
-        #MM TODO: vehicle.parameters['SIM_BATT_CAPACITY'] = 1000    
-        # Function to send custom MAVLink battery reset command
+    
+    # Function to send custom MAVLink battery reset command
     def send_batreset(self):
         """
         Send a custom MAVLink command to reset the battery state in the simulation.
         """
-        msg = self.message_factory.command_long_encode(
-            0, 0, 
-            mavutil.mavlink.MAV_CMD_DO_FLIGHTTERMINATION, # Example command; replace with actual if different
-            0, 
-            0, 0, 0, 1, 0, 0, 0  # Customize parameters as needed for actual reset logic
+        msg = self.vehicle.message_factory.command_long_encode(
+            0, 0, # target_system, target_component
+            mavutil.mavlink.MAV_CMD_BATTERY_RESET, # command
+            0,    # confirmation
+            0, 0, 0, 0, 0, 0, 0  
         )
         
-        self.send_mavlink(msg)
-        self.flush()
+        self.vehicle.send_mavlink(msg)
+        self.vehicle.flush()
         print("Battery reset command sent.")
     
     def __del__(self):
@@ -177,7 +175,7 @@ def main():
     
     # Process the arguments
     if args.reset:
-        controller.send_batreset(vehicle)
+        controller.send_batreset()
         print("System Battery Power is reset")
         return
 
@@ -186,7 +184,7 @@ def main():
         print(f"Vertical Movement: {args.vertMovement}")
         print(f"Horizontal Movement: {args.hortMovement}")
         print(f"Altitude: {args.altitude} meters")
-        controller.run_sim(vehicle, args.vertMovement, args.hortMovement, args.altitude)
+        controller.run_sim(args.vertMovement, args.hortMovement, args.altitude)
         
     #MM TODO: for debugging
     # Print the currently available flight modes
