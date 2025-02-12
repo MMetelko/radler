@@ -14,7 +14,8 @@ class DroneController:
     
     def connect(self):
         self.vehicle = connect(self.connection_str, wait_ready=True)
-        print("Connected to the vehicle.")
+        self.target_system = self.vehicle._master.target_system
+        print(f"Connected to the vehicle with target system ID = {self.target_system}.")
         
     def arm_and_takeoff(self, aTargetAltitude):
         """
@@ -130,10 +131,11 @@ class DroneController:
         Send a custom MAVLink command to reset the battery state in the simulation.
         """
         msg = self.vehicle.message_factory.command_long_encode(
-            0, 0, # target_system, target_component
+            self.target_system, 
+            mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
             mavutil.mavlink.MAV_CMD_BATTERY_RESET, # command
             0,    # confirmation
-            0, 0, 0, 0, 0, 0, 0  
+            -1, 100, 0, 0, 0, 0, 0  
         )
         
         self.vehicle.send_mavlink(msg)
@@ -167,10 +169,10 @@ def main():
     args = parser.parse_args()
 
     # Connect to the vehicle (ARDUPILOT SIMULATOR)
-    print("Connecting to vehicle on: '127.0.0.1:14550'")
+    print("Connecting to vehicle on: '127.0.0.1:14551'")
     
     #MM TODO: vehicle = connect('127.0.0.1:14550', wait_ready=True)
-    controller = DroneController('127.0.0.1:14550')
+    controller = DroneController('127.0.0.1:14551')
     controller.connect()
     
     # Process the arguments
@@ -193,12 +195,3 @@ def main():
 # Entry point
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-

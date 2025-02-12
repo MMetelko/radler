@@ -1,3 +1,0 @@
-# Allow multiple TCP connections
-MAV_TCP =2
-MAV_TCP_PORT=5760
