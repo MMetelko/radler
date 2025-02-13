@@ -1,31 +1,40 @@
 #!/bin/bash
 set -ex
 
-RUN_FLUXBOX=${RUN_FLUXBOX:-yes}
-RUN_XTERM=${RUN_XTERM:-yes}
+LOCK_FILE="/tmp/ardupilot_initialized.lock"
 
-case $RUN_FLUXBOX in
-  false|no|n|0)
-    rm -f /app-novnc/conf.d/fluxbox.conf
-    ;;
-esac
+# Check if the lock file exists
+if [ ! -f "$LOCK_FILE" ]; then
+  touch "$LOCK_FILE" # create lock file
 
-case $RUN_XTERM in
-  false|no|n|0)
-    rm -f /app-novnc/conf.d/xterm.conf
-    ;;
-esac
+  RUN_FLUXBOX=${RUN_FLUXBOX:-yes}
+  RUN_XTERM=${RUN_XTERM:-yes}
 
-# setup ardupilot environment
-source ~/.ardupilot_env
+  case $RUN_FLUXBOX in
+    false|no|n|0)
+      rm -f /app-novnc/conf.d/fluxbox.conf
+      ;;
+  esac
 
-# setup ros2 environment
-source "$ROS2_PREFIX/$ROS2_DISTRO/setup.bash"
-source "$ROS2_WS/install/local_setup.bash"
+  case $RUN_XTERM in
+    false|no|n|0)
+      rm -f /app-novnc/conf.d/xterm.conf
+      ;;
+  esac
 
-cd /ardupilot
+  # setup ardupilot environment
+  source ~/.ardupilot_env
 
-exec supervisord -c /app-novnc/supervisord.conf
+  # setup ros2 environment
+  source "$ROS2_PREFIX/$ROS2_DISTRO/setup.bash"
+  source "$ROS2_WS/install/local_setup.bash"
 
-# See xterm.conf under app/conf.d to see the commands for the 4 different windows
+  cd /ardupilot
+
+  exec supervisord -c /app-novnc/supervisord.conf
+  # See xterm.conf under app/conf.d to see the commands for the 4 different windows
+
+else
+  echo "ArduPilot environment already initialized.  Skipping initialization."
+fi
 
