@@ -26,12 +26,13 @@ class DroneController:
             print(" Waiting for vehicle to initialize...")
             time.sleep(1)
 
-        print("Arming motors")
+        print("Changing to GUIDED mode...")
         self.vehicle.mode = VehicleMode("GUIDED")
         while self.vehicle.mode != 'GUIDED':
             print(" Waiting for guiding mode...")
             time.sleep(1)
 
+        print("Arming motors...")
         self.vehicle.armed = True
         while not self.vehicle.armed:
             print(" Waiting for arming...")
@@ -70,7 +71,7 @@ class DroneController:
         """
         current_location = self.vehicle.location.global_relative_frame
         target_location = self.get_location_offset_meters(current_location, dNorth, dEast, dAlt)
-        print(f"Moving to position (NORTH: {dNorth}m, EAST: {dEast}m, ALT: {dAlt}m)")
+        print(f"Moving to relative position (NORTH: {dNorth}m, EAST: {dEast}m, ALT: {dAlt}m)")
         self.vehicle.simple_goto(target_location)
         # Adjust time to ensure vehicle reaches the target
         #MM TODO: adjust this value to meet the needs of the radler system.  In other words, make sure the return is due to battery level, not block by this timeout.
@@ -97,24 +98,12 @@ class DroneController:
     def run_sim(self, vertMovement, hortMovement, altitude):
         # Main script starts here
         try:
-            print("Changing to GUIDED mode")
-            self.vehicle.mode = VehicleMode("GUIDED")
-            while self.vehicle.mode != 'GUIDED':
-                print(" Waiting for GUIDED mode...")
-                time.sleep(1)
-
-            print("Arming the vehicle")
-            self.vehicle.armed = True
-            while not self.vehicle.armed:
-                print(" Waiting for arming...")
-                time.sleep(1)
-
             print(f"Taking off to indicated altitude of {altitude} (in meters)")
             self.arm_and_takeoff(altitude)
 
             time.sleep(10)
 
-            print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
+            #print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
             self.goto_position_ned(vertMovement, hortMovement, 0)
 
             #MM TODO: this may interfere with Radler battery low actions - checkout later
@@ -187,10 +176,8 @@ def main():
         print(f"Horizontal Movement: {args.hortMovement}")
         print(f"Altitude: {args.altitude} meters")
         controller.run_sim(args.vertMovement, args.hortMovement, args.altitude)
-        
-    #MM TODO: for debugging
-    # Print the currently available flight modes
-    #print("Supported modes: ", vehicle.mode_mapping())
+              
+    del controller
 
 # Entry point
 if __name__ == "__main__":
