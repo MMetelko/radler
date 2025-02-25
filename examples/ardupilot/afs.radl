@@ -1,105 +1,82 @@
-sensor_msgs : cmake_library {
-  CMAKE_MODULE "sensor_msgs"
-  CMAKE_VAR_LIBRARIES "sensor_msgs_LIBRARIES"
-  CMAKE_VAR_INCLUDE_DIRS "sensor_msgs_INCLUDE_DIRS"
+battery_topic : topic {
+	FIELDS
+		remaining_percentage : float32 0.0 # utilized battery percentage in range [0.0 to 100.0]
 }
 
-nav_msgs : cmake_library {
-  CMAKE_MODULE "nav_msgs"
-  CMAKE_VAR_LIBRARIES "nav_msgs_LIBRARIES"
-  CMAKE_VAR_INCLUDE_DIRS "nav_msgs_INCLUDE_DIRS"
+geofence_topic : topic {
+	FIELDS
+		breach_status : uint8  0 # Breach status (0 if currently inside fence, 1 if outside).
+		breach_count  : uint16 0 # Number of fence breaches
+		breach_type   : uint8  0 # Last breach type with 0 -> No last fence breach, 1 -> Breached minimum altitude, 2 -> Breached maximum altitude and 3-> Breached fence boundary
+		breach_time   : uint32 0 # in ms Time (since boot) of last breach
 }
 
-mavros_msgs : cmake_library {
-  CMAKE_MODULE "mavros_msgs"
-  CMAKE_VAR_LIBRARIES "mavros_msgs_LIBRARIES"
-  CMAKE_VAR_INCLUDE_DIRS "mavros_msgs_INCLUDE_DIRS"
+gps_topic : topic {
+	FIELDS
+		fix_type : uint8 0 # values in in range [0 to 8] 0->No GPS connected, 1->No position information, GPS is connected, 2,3,4,5,6,7,8 are non error status
+		satellites_visible: uint8 0 # Number of satellites visible
 }
 
-std_msgs : cmake_library {
-  CMAKE_MODULE "std_msgs"
-  CMAKE_VAR_LIBRARIES "std_msgs_LIBRARIES"
-  CMAKE_VAR_INCLUDE_DIRS "std_msgs_INCLUDE_DIRS"
+flight_controls_mode_topic : topic {
+	FIELDS
+		cmd_id : uint8  0 # Flight controls command code to copter e.g. 0 -> None, 1->return to launch,
+											# 2->land vertically down at the current location 3-> hover at current location
+											# 4->Auto (autonomous mode continue mission to next waypoints)
 }
 
-jni : cmake_library {
-  CMAKE_MODULE "JNI"
-  CMAKE_VAR_LIBRARIES "JNI_LIBRARIES"
-  CMAKE_VAR_INCLUDE_DIRS "JNI_INCLUDE_DIRS"
+gcs_message_topic : topic {
+	FIELDS
+		msg_id : uint8  0 # pre-defined message being sent back to GCS including the current location, landing location etc.
 }
 
-battery : topic {
-  FIELDS
-    percentage : float32 1
+# AFS Gateway node will publish to 4 recovery actions subscriber AFS Function ROS node that does: (i) AFS Geofence Breach Recovery (ii) AFS GCS Comm Loss Recovery
+# (iii) AFS GPS Lock Loss Recovery (iv) AFS Battery Insufficiency Recovery
+# AFS Function performs 4 recovery actions and publishes copter command and gc message back to AFS Gateway
+
+afs_gateway : node {
+	DEFS # All the mission configuration parameters and AFS settings configurations like thresholds and margins
+		max_number_mission_waypoints: uint8 8 # Maximum number of waypoints in the mission trajectory
+	PUBLISHES
+		battery_status { TOPIC battery_topic }
+		geofence_status { TOPIC geofence_topic }
+		gps_status { TOPIC gps_topic }
+		#todo gcs_comm_status
+	SUBSCRIBES
+		copter_command { TOPIC flight_controls_mode_topic MAXLATENCY 100msec }
+		gcs_message { TOPIC gcs_message_topic MAXLATENCY 100msec }
+	PERIOD 100msec  # currently running AFS Gateway @ 10 hz (100 ms) period
+	PATH "src"
+	CXX { HEADER "afs_gateway.h" FILENAME "afs_gateway.cpp" CLASS "AFS_Gateway" }
 }
 
-global_position_local : topic {
-  FIELDS
-    x : float64 0
-    y : float64 0
-}
-
-rel_alt : topic {
-  FIELDS
-    data : float64 0
-}
-
-mode_rtl : topic {
-  FIELDS
-    val : bool false
-}
-
-gateway : node {
-  PUBLISHES
-    battery_status { TOPIC battery }
-    altitude { TOPIC rel_alt }
-    position { TOPIC global_position_local }
-  SUBSCRIBES 
-    mode_change_rtl { TOPIC mode_rtl MAXLATENCY 100msec }
-  PERIOD 100msec
-  PATH "src"
-  CXX { HEADER "gateway.h" FILENAME "gateway.cpp" CLASS "Gateway" LIB sensor_msgs mavros_msgs nav_msgs std_msgs }
-} 
-
-afs_battery : node {
-  DEFS
-    min_battery : float32 0.9 
-  PUBLISHES
-    mode_change_rtl { TOPIC mode_rtl } 
-  SUBSCRIBES 
-    battery_status { TOPIC battery MAXLATENCY 100msec }
-  PERIOD 100msec
-  PATH "src"
-  CXX { HEADER "afs_battery.h" FILENAME "afs_battery.cpp" CLASS "AFS_Battery" }
-} 
-
-afs_log : node {
-  SUBSCRIBES
-    altitude { TOPIC rel_alt MAXLATENCY 100msec }
-  PERIOD 100msec
-  PATH "src"
-  CXX { HEADER "afs_log.h" FILENAME "afs_log.cpp" CLASS "AFS_Log" LIB jni }
-}
-
-afs_esp : node {
-  DEFS
-    daikon: bool false
-  SUBSCRIBES
-    position { TOPIC global_position_local MAXLATENCY 100msec }
-  PERIOD 100msec
-  PATH "src"
-  CXX { HEADER "afs_esp.h" FILENAME "afs_esp.cpp" CLASS "AFS_esp" LIB jni }
+afs_function : node {
+	DEFS # All the mission configuration parameters and AFS settings configurations like thresholds and margins
+		battery_T_nom : float32 60.0 # battery remaining % after completing a nominal mission without emergencies
+		battery_T_rtl : float32 35.0 # battery remaining % when you need to trigger Return To Launch (RTL)
+		battery_T_land : float32 15.0 # battery remaining  when you need to trigger to immediately land
+		max_GPS_losses_allowed: uint8 3 # Maximum number of GPS Loss Disruptions allowed (number of transitions from GPS Loss to GPS Fix)
+	PUBLISHES
+		copter_command { TOPIC flight_controls_mode_topic }
+		gcs_message { TOPIC gcs_message_topic }
+	SUBSCRIBES
+		battery_status { TOPIC battery_topic MAXLATENCY 100msec }
+		gps_status { TOPIC gps_topic MAXLATENCY 100msec }
+		geofence_status { TOPIC geofence_topic MAXLATENCY 100msec }
+	PERIOD 100msec # currently running AFS Function @ 10 hz (100 ms) period
+	PATH "src"
+	CXX { HEADER "afs_function.h" FILENAME "afs_function.cpp" CLASS "AFS_Function" }
 }
 
 plant : plant {
-  MACHINES
-    machine1 {
-      OS linux {
-        NODES_UID 1000
-        IMG "linux.img"
-        IP 192.168.1.202
-        NODES
-          gateway afs_battery afs_log afs_esp
-      }
-    }
+	MACHINES
+		afs_machine {
+			OS linux {
+				NODES_UID 1000
+				IMG "linux.img"
+				IP 192.168.1.202
+				NODES
+					afs_gateway
+					afs_function
+			}
+		}
 }
