@@ -2,6 +2,8 @@
 
 AFS_Function::AFS_Function()
 {
+	node = rclcpp::Node::make_shared("afs_function");
+
 	battery_remaining_percentage = 100.0;
 	gps_fix_state = "Available";
 	afs_state = "Normal Flight";
@@ -13,9 +15,13 @@ AFS_Function::AFS_Function()
 
 void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_out_t * o, radl_out_flags_t* o_f)
 {
-	ros::Time current_time = ros::Time::now();
+	rclcpp::Time current_time = node->now();
 
-
+	//auto request = std::make_shared<mavros_msgs::srv::SetMode::Request>();
+	//request->base_mode = 0;
+  
+	rclcpp::spin_some(node);
+  
 	if (!radl_is_stale(i_f->battery_status) && !radl_is_timeout(i_f->battery_status)) {
 		battery_remaining_percentage = i->battery_status->remaining_percentage;
 	}
@@ -30,8 +36,8 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 				previous_gps_loss_time = current_time; // initialize previous_gps_loss_time for when the consecutive gps loss began
 			}
 			// Sum the consecutive GPS loss duration to keep track of accumulated time of GPS Loss consecutively
-			current_gps_loss_duration = current_gps_loss_duration + ((double)current_time.sec - (double)previous_gps_loss_time.sec);
-			current_gps_loss_duration = current_gps_loss_duration + (((double)current_time.nsec - (double)previous_gps_loss_time.nsec)/1000000000.0);
+			current_gps_loss_duration = current_gps_loss_duration + ((double)current_time.seconds() - (double)previous_gps_loss_time.seconds());
+			current_gps_loss_duration = current_gps_loss_duration + (((double)current_time.nanoseconds() - (double)previous_gps_loss_time.nanoseconds())/1000000000.0);
 			previous_gps_loss_time = current_time; // override previous_gps_loss_time with current_time for tracking GPS Loss duration
 		} else {
 			gps_fix_state = "Available";
@@ -52,8 +58,8 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 				previous_max_altitude_breach_time = current_time; // initialize previous_max_altitude_breach_time for when the consecutive gps loss began
 			}
 			// Sum the consecutive Max Altitude Breach duration to keep track of accumulated time of breaches consecutively
-			current_max_altitude_breach_duration = current_max_altitude_breach_duration + ((double)current_time.sec - (double)previous_max_altitude_breach_time.sec);
-			current_max_altitude_breach_duration = current_max_altitude_breach_duration + (((double)current_time.nsec - (double)previous_max_altitude_breach_time.nsec)/1000000000.0);
+			current_max_altitude_breach_duration = current_max_altitude_breach_duration + ((double)current_time.seconds() - (double)previous_max_altitude_breach_time.seconds());
+			current_max_altitude_breach_duration = current_max_altitude_breach_duration + (((double)current_time.nanoseconds() - (double)previous_max_altitude_breach_time.nanoseconds())/1000000000.0);
 			previous_max_altitude_breach_time = current_time; // override previous_max_altitude_breach_time with current_time for tracking Max Altitude Breach duration
 		} else {
 			max_altitude_breach_event = "False";
@@ -63,16 +69,16 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 		}
 	}
 
-	cout << "AFS Function at (" << current_time.sec << "s, " << current_time.nsec << "ns) ";
+	cout << "AFS Function at (" << current_time.seconds() << "s, " << current_time.nanoseconds() << "ns) ";
 	cout << "remaining battery: " << battery_remaining_percentage << ", T_rtl: " << *RADL_THIS->battery_T_rtl
 			 << ", T_land: " << *RADL_THIS->battery_T_land <<", max_GPS_losses_allowed: " << (int) *RADL_THIS->max_GPS_losses_allowed << endl;
 	cout << ", AFS State: " << afs_state
 			 << ", GPS Fix State: " << gps_fix_state << ", GPS Loss Count: " << gps_loss_count
 			 << ", current gp loss duration: " << current_gps_loss_duration
-			 << ", previous gps loss time: (" << previous_gps_loss_time.sec << "s, " << previous_gps_loss_time.nsec << "ns) "
+			 << ", previous gps loss time: (" << previous_gps_loss_time.seconds() << "s, " << previous_gps_loss_time.nanoseconds() << "ns) "
 			 << ", Max Altitude Breach Event: " << max_altitude_breach_event
 			 << ", current max altitude breach duration: " << current_max_altitude_breach_duration
-			 << ", previous max altitude breach event time: (" << previous_max_altitude_breach_time.sec << "s, " << previous_max_altitude_breach_time.nsec << "ns) "
+			 << ", previous max altitude breach event time: (" << previous_max_altitude_breach_time.seconds() << "s, " << previous_max_altitude_breach_time.nanoseconds() << "ns) "
 			 << ", Copter Command: ";
 
 	radl_turn_on(radl_STALE, &o_f->copter_command);
