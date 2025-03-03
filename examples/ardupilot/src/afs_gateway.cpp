@@ -71,7 +71,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 	if (this->gps_status_mailbox) {
 		o->gps_status->fix_type = this->gps_status_mailbox->fix_type;
 		o->gps_status->satellites_visible = this->gps_status_mailbox->satellites_visible;
-		if ((o->gps_status->fix_type == GPS_FIX_TYPE_NO_GPS) || (o->gps_status->fix_type == GPS_FIX_TYPE_NO_FIX)){
+		if ((o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE::NO_GPS)) || (o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE::NO_FIX))){
 			cout << "AFS Gateway at (" << current_time.seconds() << "s, " << current_time.nanoseconds() << "ns) "
 					 << "GPS FIX LOSS with visible satellites: " << (int) o->gps_status->satellites_visible  << " "
 					 << "with status message at (" << this->gps_status_mailbox->header.stamp.sec << "s, " << this->gps_status_mailbox->header.stamp.nanosec << "ns) "

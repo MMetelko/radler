@@ -1,3 +1,33 @@
+sensor_msgs : cmake_library {
+  CMAKE_MODULE "sensor_msgs"
+  CMAKE_VAR_LIBRARIES "sensor_msgs_LIBRARIES"
+  CMAKE_VAR_INCLUDE_DIRS "sensor_msgs_INCLUDE_DIRS"
+}
+
+mavros_msgs : cmake_library {
+  CMAKE_MODULE "mavros_msgs"
+  CMAKE_VAR_LIBRARIES "mavros_msgs_LIBRARIES"
+  CMAKE_VAR_INCLUDE_DIRS "mavros_msgs_INCLUDE_DIRS"
+}
+
+diagnostic_msgs : cmake_library {
+  CMAKE_MODULE "diagnostic_msgs"
+  CMAKE_VAR_LIBRARIES "diagnostic_msgs_LIBRARIES"
+  CMAKE_VAR_INCLUDE_DIRS "diagnostic_msgs_INCLUDE_DIRS"
+}
+
+std_msgs : cmake_library {
+  CMAKE_MODULE "std_msgs"
+  CMAKE_VAR_LIBRARIES "std_msgs_LIBRARIES"
+  CMAKE_VAR_INCLUDE_DIRS "std_msgs_INCLUDE_DIRS"
+}
+
+mavlink : cmake_library {
+  CMAKE_MODULE "mavlink"
+  CMAKE_VAR_LIBRARIES "mavlink_LIBRARIES"
+  CMAKE_VAR_INCLUDE_DIRS "mavlink_INCLUDE_DIRS"
+}
+
 battery_topic : topic {
 	FIELDS
 		remaining_percentage : float32 0.0 # utilized battery percentage in range [0.0 to 100.0]
