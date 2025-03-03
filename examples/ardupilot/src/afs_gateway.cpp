@@ -37,7 +37,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				 << "battery remaining: " << o->battery_status->remaining_percentage << "% "
 				 << "with status message at (" << this->battery_status_mailbox->header.stamp.sec << "s, " << this->battery_status_mailbox->header.stamp.nanosec << "ns) "
 				 << endl;
-		this->battery_status_mailbox = NULL;
+		//MM TODO: this->battery_status_mailbox = NULL;
 		radl_turn_off(radl_STALE, &o_f->battery_status);
 	} else {
 		radl_turn_on(radl_STALE, &o_f->battery_status);
@@ -61,7 +61,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				 << (int) o->geofence_status->breach_type << ", " << (int) o->geofence_status->breach_time << ") "
 				 << "with status message at (" << this->geofence_status_mailbox->header.stamp.sec << "s, " << this->geofence_status_mailbox->header.stamp.nanosec << "ns) "
 				 << endl;
-		this->geofence_status_mailbox = NULL;
+		//MM TODO: this->geofence_status_mailbox = NULL;
 		radl_turn_off(radl_STALE, &o_f->geofence_status);
 	} else {
 		radl_turn_on(radl_STALE, &o_f->geofence_status);
@@ -82,7 +82,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					 << "with status message at (" << this->gps_status_mailbox->header.stamp.sec << "s, " << this->gps_status_mailbox->header.stamp.nanosec << "ns) "
 					 << endl;
 		}
-		this->gps_status_mailbox = NULL;
+		//MM TODO: this->gps_status_mailbox = NULL;
 		radl_turn_off(radl_STALE, &o_f->gps_status);
 	} else {
 		radl_turn_on(radl_STALE, &o_f->gps_status);
@@ -118,7 +118,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				 << (double) this->globalposition_status_mailbox->altitude << ") "
 				 << "with status message at (" << this->globalposition_status_mailbox->header.stamp.sec << "s, " << this->globalposition_status_mailbox->header.stamp.nanosec << "ns) "
 				 << endl;
-		this->globalposition_status_mailbox = NULL;
+		//MM TODO: this->globalposition_status_mailbox = NULL;
 	}
 
 	if (this->diagnostics_status_mailbox) {
@@ -148,7 +148,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				 << endl;
 		previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
 		previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
-		this->diagnostics_status_mailbox = NULL;
+		//MM TODO: this->diagnostics_status_mailbox = NULL;
 	}
 
 	//ignore staleness check as might have repeated send command to autopilot on failure
@@ -207,34 +207,34 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 	}
 }
 
-void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryState::SharedPtr bs)
+void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryState::ConstSharedPtr bs)
 {
 	this->battery_status_mailbox = bs;
 }
 
-void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::SharedPtr fs){
+void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs){
 	if (fs->msgid == 162) { //FENCE_STATUS with msgid #162
 		this->geofence_status_mailbox = fs;
 	} // else skip processing the mavlink message
 }
 
-void AFS_Gateway::mavros_gps_status_callback(const mavros_msgs::msg::GPSRAW::SharedPtr gs)
+void AFS_Gateway::mavros_gps_status_callback(const mavros_msgs::msg::GPSRAW::ConstSharedPtr gs)
 {
 	this->gps_status_mailbox = gs;
 }
 
-void AFS_Gateway::mavros_autopilotstate_callback(const mavros_msgs::msg::State::SharedPtr aps){
+void AFS_Gateway::mavros_autopilotstate_callback(const mavros_msgs::msg::State::ConstSharedPtr aps){
 	this->autopilotstate_status_mailbox = aps;
 }
 
-void AFS_Gateway::mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::SharedPtr mws){
+void AFS_Gateway::mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::ConstSharedPtr mws){
 	this->missionwaypoints_status_mailbox = mws;
 }
 
-void AFS_Gateway::mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::SharedPtr gps){
+void AFS_Gateway::mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps){
 	this->globalposition_status_mailbox = gps;
 }
 
-void AFS_Gateway::mavros_diagnostics_callback(const diagnostic_msgs::msg::DiagnosticArray::SharedPtr das){
+void AFS_Gateway::mavros_diagnostics_callback(const diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr das){
 	this->diagnostics_status_mailbox = das;
 }
