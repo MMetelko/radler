@@ -1,13 +1,12 @@
 #include RADL_HEADER
 
-//#include "ros/ros.h"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/qos.hpp"
 
-#include "mavlink/v2.0/common/mavlink.h"
-#include "mavlink/v2.0/common/common.hpp"
-#include "mavros_msgs/mavlink_convert.hpp"
-#include "mavros_msgs/msg/mavlink.hpp"
+//#include "mavlink/v2.0/common/mavlink.h"
+//#include "mavlink/v2.0/common/common.hpp"
+//#include "mavros_msgs/mavlink_convert.hpp"
+//#include "mavros_msgs/msg/mavlink.hpp"
 #include "mavros_msgs/msg/gpsraw.hpp"
 #include "mavros_msgs/srv/set_mode.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
@@ -17,6 +16,29 @@
 #include <string>
 
 using namespace std;
+
+// Pulled from mavlink/v2.0/common/common.hpp
+enum class FENCE_BREACH : uint8_t
+{
+    NONE = 0,     /* No last fence breach | */
+    MINALT = 1,   /* Breached minimum altitude | */
+    MAXALT = 2,   /* Breached maximum altitude | */
+    BOUNDARY = 3, /* Breached fence boundary | */
+};
+
+/** Type of GPS fix */
+enum class GPS_FIX_TYPE : uint8_t
+{
+    NO_GPS=0, /* No GPS connected | */
+    NO_FIX=1, /* No position information, GPS is connected | */
+    TYPE_2D_FIX=2, /* 2D position | */
+    TYPE_3D_FIX=3, /* 3D position | */
+    DGPS=4, /* DGPS/SBAS aided 3D position | */
+    RTK_FLOAT=5, /* RTK float, 3D position | */
+    RTK_FIXED=6, /* RTK Fixed, 3D position | */
+    STATIC=7, /* Static fixed, typically used for base stations | */
+    PPP=8, /* PPP, 3D position. | */
+};
 
 
 class AFS_Function
