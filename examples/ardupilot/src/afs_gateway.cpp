@@ -26,7 +26,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 	rclcpp::spin_some(node);
 
 	//MM TODO: are these three lines needed?
-	mavlink_message_t mmsg;
+	mavlink::mavlink_message_t mmsg;
 	//mavros_msgs::srv::SetMode fc_setMode;
 	//fc_setMode.Request.base_mode = 0;
 
