@@ -15,11 +15,7 @@ AFS_Function::AFS_Function()
 
 void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_out_t * o, radl_out_flags_t* o_f)
 {
-	rclcpp::Time current_time = node->now();
-
-	//auto request = std::make_shared<mavros_msgs::srv::SetMode::Request>();
-	//request->base_mode = 0;
-  
+	rclcpp::Time current_time = node->now(); 
 	rclcpp::spin_some(node);
   
 	if (!radl_is_stale(i_f->battery_status) && !radl_is_timeout(i_f->battery_status)) {

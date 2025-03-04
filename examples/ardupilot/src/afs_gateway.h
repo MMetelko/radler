@@ -12,28 +12,11 @@
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "mavlink/v2.0/common/mavlink.h"
-//#include "mavlink/v2.0/common/common.hpp"
-//#include "mavros_msgs/mavlink_convert.hpp"
 
 #include <iostream>
 #include <string>
 
 using namespace std;
-
-// Pulled from mavlink/v2.0/common/common.hpp
-/** @brief Type of GPS fix */
-// enum class GPS_FIX_TYPE : uint8_t
-// {
-//     NO_GPS=0, /* No GPS connected | */
-//     NO_FIX=1, /* No position information, GPS is connected | */
-//     TYPE_2D_FIX=2, /* 2D position | */
-//     TYPE_3D_FIX=3, /* 3D position | */
-//     DGPS=4, /* DGPS/SBAS aided 3D position | */
-//     RTK_FLOAT=5, /* RTK float, 3D position | */
-//     RTK_FIXED=6, /* RTK Fixed, 3D position | */
-//     STATIC=7, /* Static fixed, typically used for base stations | */
-//     PPP=8, /* PPP, 3D position. | */
-// };
 
 
 class AFS_Gateway

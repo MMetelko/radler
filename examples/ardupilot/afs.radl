@@ -92,7 +92,7 @@ afs_gateway : node {
 		HEADER "afs_gateway.h" 
 		FILENAME "afs_gateway.cpp" 
 		CLASS "AFS_Gateway" 
-		LIBS
+		LIB
 			rclcpp
 			sensor_msgs
 			mavros_msgs
@@ -121,11 +121,11 @@ afs_function : node {
 		HEADER "afs_function.h" 
 		FILENAME "afs_function.cpp" 
 		CLASS "AFS_Function"
-		LIBS 
+		LIB 
 			rclcpp
-        	sensor_msgs
-        	mavros_msgs
-      std_msgs
+			sensor_msgs
+			mavros_msgs
+			std_msgs
 	}
 }
 

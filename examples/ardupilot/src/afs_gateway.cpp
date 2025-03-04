@@ -25,13 +25,9 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
   
 	rclcpp::spin_some(node);
 
-	//MM TODO: are these three lines needed?
 	mavlink_message_t mmsg;
-	//mavros_msgs::srv::SetMode fc_setMode;
-	//fc_setMode.Request.base_mode = 0;
 
 	if (this->battery_status_mailbox) {
-		//MM TODO: is the "this->" necessary?
 		o->battery_status->remaining_percentage = (this->battery_status_mailbox->percentage * 100.0); // [0.0,1.0] to [0.0, 100.0]
 		cout << "AFS Gateway at (" << current_time.seconds() << "s, " << current_time.nanoseconds() << "ns) "
 				 << "battery remaining: " << o->battery_status->remaining_percentage << "% "
