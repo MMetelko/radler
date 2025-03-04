@@ -1,3 +1,15 @@
+rclcpp : cmake_library {
+  CMAKE_MODULE "rclcpp"
+  CMAKE_VAR_LIBRARIES "rclcpp_LIBRARIES"
+  CMAKE_VAR_INCLUDE_DIRS "rclcpp_INCLUDE_DIRS"
+}
+
+rosidl_default_generators : cmake_library {
+  CMAKE_MODULE "rosidl_default_generators"
+  CMAKE_VAR_LIBRARIES "rosidl_default_generators_LIBRARIES"
+  CMAKE_VAR_INCLUDE_DIRS "rosidl_default_generators_INCLUDE_DIRS"
+}
+
 sensor_msgs : cmake_library {
   CMAKE_MODULE "sensor_msgs"
   CMAKE_VAR_LIBRARIES "sensor_msgs_LIBRARIES"
@@ -76,7 +88,18 @@ afs_gateway : node {
 		gcs_message { TOPIC gcs_message_topic MAXLATENCY 100msec }
 	PERIOD 100msec  # currently running AFS Gateway @ 10 hz (100 ms) period
 	PATH "src"
-	CXX { HEADER "afs_gateway.h" FILENAME "afs_gateway.cpp" CLASS "AFS_Gateway" }
+	CXX { 
+		HEADER "afs_gateway.h" 
+		FILENAME "afs_gateway.cpp" 
+		CLASS "AFS_Gateway" 
+		LIBS
+			rclcpp
+			sensor_msgs
+			mavros_msgs
+			diagnostic_msgs
+			std_msgs
+			mavlink
+	}
 }
 
 afs_function : node {
@@ -94,7 +117,16 @@ afs_function : node {
 		geofence_status { TOPIC geofence_topic MAXLATENCY 100msec }
 	PERIOD 100msec # currently running AFS Function @ 10 hz (100 ms) period
 	PATH "src"
-	CXX { HEADER "afs_function.h" FILENAME "afs_function.cpp" CLASS "AFS_Function" }
+	CXX { 
+		HEADER "afs_function.h" 
+		FILENAME "afs_function.cpp" 
+		CLASS "AFS_Function"
+		LIBS 
+			rclcpp
+        	sensor_msgs
+        	mavros_msgs
+      std_msgs
+	}
 }
 
 plant : plant {

@@ -28,7 +28,7 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 
 	if (!radl_is_stale(i_f->gps_status) && !radl_is_timeout(i_f->gps_status)) {
 		gps_fix_type = i->gps_status->fix_type;
-		if ((gps_fix_type == static_cast<uint8_t>(GPS_FIX_TYPE::NO_GPS)) || (gps_fix_type == static_cast<uint8_t>(GPS_FIX_TYPE::NO_FIX))){
+		if ((gps_fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_GPS)) || (gps_fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_FIX))){
 			gps_fix_state = "Lost";
 			if (current_gps_loss_duration < 0.0) {
 				// first time in the current stretch of potentially consecutive/coninuous loss
@@ -50,7 +50,7 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 	if (!radl_is_stale(i_f->geofence_status) && !radl_is_timeout(i_f->geofence_status)) {
 		breach_status = i->geofence_status->breach_status;
 		breach_type = i->geofence_status->breach_type;
-		if ((breach_status == 1) && (breach_type == static_cast<uint8_t>(FENCE_BREACH::MAXALT)))
+		if ((breach_status == 1) && (breach_type == static_cast<uint8_t>(FENCE_BREACH_MAXALT)))
 		{
 			max_altitude_breach_event = "True";
 			if (current_max_altitude_breach_duration < 0.0) {
