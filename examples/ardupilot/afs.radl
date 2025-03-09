@@ -102,32 +102,32 @@ afs_gateway : node {
 	}
 }
 
-afs_function : node {
-	DEFS # All the mission configuration parameters and AFS settings configurations like thresholds and margins
-		battery_T_nom : float32 60.0 # battery remaining % after completing a nominal mission without emergencies
-		battery_T_rtl : float32 35.0 # battery remaining % when you need to trigger Return To Launch (RTL)
-		battery_T_land : float32 15.0 # battery remaining  when you need to trigger to immediately land
-		max_GPS_losses_allowed: uint8 3 # Maximum number of GPS Loss Disruptions allowed (number of transitions from GPS Loss to GPS Fix)
-	PUBLISHES
-		copter_command { TOPIC flight_controls_mode_topic }
-		gcs_message { TOPIC gcs_message_topic }
-	SUBSCRIBES
-		battery_status { TOPIC battery_topic MAXLATENCY 100msec }
-		gps_status { TOPIC gps_topic MAXLATENCY 100msec }
-		geofence_status { TOPIC geofence_topic MAXLATENCY 100msec }
-	PERIOD 100msec # currently running AFS Function @ 10 hz (100 ms) period
-	PATH "src"
-	CXX { 
-		HEADER "afs_function.h" 
-		FILENAME "afs_function.cpp" 
-		CLASS "AFS_Function"
-		LIB 
-			rclcpp
-			sensor_msgs
-			mavros_msgs
-			std_msgs
-	}
-}
+#afs_function : node {
+#	DEFS # All the mission configuration parameters and AFS settings configurations like thresholds and margins
+#		battery_T_nom : float32 60.0 # battery remaining % after completing a nominal mission without emergencies
+#		battery_T_rtl : float32 35.0 # battery remaining % when you need to trigger Return To Launch (RTL)
+#		battery_T_land : float32 15.0 # battery remaining  when you need to trigger to immediately land
+#		max_GPS_losses_allowed: uint8 3 # Maximum number of GPS Loss Disruptions allowed (number of transitions from GPS Loss to GPS Fix)
+#	PUBLISHES
+#		copter_command { TOPIC flight_controls_mode_topic }
+#		gcs_message { TOPIC gcs_message_topic }
+#	SUBSCRIBES
+#		battery_status { TOPIC battery_topic MAXLATENCY 100msec }
+#		gps_status { TOPIC gps_topic MAXLATENCY 100msec }
+#		geofence_status { TOPIC geofence_topic MAXLATENCY 100msec }
+#	PERIOD 100msec # currently running AFS Function @ 10 hz (100 ms) period
+#	PATH "src"
+#	CXX { 
+#		HEADER "afs_function.h" 
+#		FILENAME "afs_function.cpp" 
+#		CLASS "AFS_Function"
+#		LIB 
+#			rclcpp
+#			sensor_msgs
+#			mavros_msgs
+#			std_msgs
+#	}
+#}
 
 plant : plant {
 	MACHINES
@@ -135,10 +135,10 @@ plant : plant {
 			OS linux {
 				NODES_UID 1000
 				IMG "linux.img"
-				IP 192.168.1.202
+				IP 192.168.1.100
 				NODES
 					afs_gateway
-					afs_function
+					#afs_function
 			}
 		}
 }
