@@ -33,7 +33,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				 << "battery remaining: " << o->battery_status->remaining_percentage << "% "
 				 << "with status message at (" << this->battery_status_mailbox->header.stamp.sec << "s, " << this->battery_status_mailbox->header.stamp.nanosec << "ns) "
 				 << endl;
-		//MM TODO: this->battery_status_mailbox = NULL;
+		this->battery_status_mailbox = NULL;
 		radl_turn_off(radl_STALE, &o_f->battery_status);
 	} else {
 		radl_turn_on(radl_STALE, &o_f->battery_status);
@@ -57,7 +57,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				 << (int) o->geofence_status->breach_type << ", " << (int) o->geofence_status->breach_time << ") "
 				 << "with status message at (" << this->geofence_status_mailbox->header.stamp.sec << "s, " << this->geofence_status_mailbox->header.stamp.nanosec << "ns) "
 				 << endl;
-		//MM TODO: this->geofence_status_mailbox = NULL;
+		this->geofence_status_mailbox = NULL;
 		radl_turn_off(radl_STALE, &o_f->geofence_status);
 	} else {
 		radl_turn_on(radl_STALE, &o_f->geofence_status);
@@ -78,7 +78,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					 << "with status message at (" << this->gps_status_mailbox->header.stamp.sec << "s, " << this->gps_status_mailbox->header.stamp.nanosec << "ns) "
 					 << endl;
 		}
-		//MM TODO: this->gps_status_mailbox = NULL;
+		this->gps_status_mailbox = NULL;
 		radl_turn_off(radl_STALE, &o_f->gps_status);
 	} else {
 		radl_turn_on(radl_STALE, &o_f->gps_status);
@@ -114,7 +114,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				 << (double) this->globalposition_status_mailbox->altitude << ") "
 				 << "with status message at (" << this->globalposition_status_mailbox->header.stamp.sec << "s, " << this->globalposition_status_mailbox->header.stamp.nanosec << "ns) "
 				 << endl;
-		//MM TODO: this->globalposition_status_mailbox = NULL;
+	this->globalposition_status_mailbox = NULL;
 	}
 
 	if (this->diagnostics_status_mailbox) {
@@ -144,7 +144,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				 << endl;
 		previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
 		previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
-		//MM TODO: this->diagnostics_status_mailbox = NULL;
+		this->diagnostics_status_mailbox = NULL;
 	}
 
 	//ignore staleness check as might have repeated send command to autopilot on failure
