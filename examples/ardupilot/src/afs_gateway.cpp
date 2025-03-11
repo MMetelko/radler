@@ -137,6 +137,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 							previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
 						} else {
 							cout << "Invalid status array values is empty" << endl;
+							return;
 						} 
 					} else {
 						cout << "Invalid status size: " << this->diagnostics_status_mailbox->status.size() << endl;
@@ -147,8 +148,19 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				elapsed_diagnostics_status_duration = ((double)this->diagnostics_status_mailbox->header.stamp.sec - (double)previous_diagnostics_status_time.seconds());
 				elapsed_diagnostics_status_duration += (((double)this->diagnostics_status_mailbox->header.stamp.nanosec - (double)previous_diagnostics_status_time.nanoseconds())/1000000000.0);
 				cout << "elapsed_diagnostics_status_duration set..." << endl;
-				current_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
-				cout << "current_diagnostics_heartbeat_value set..." << endl;
+				if (this->diagnostics_status_mailbox->status.size() > 2) {
+					if (!this->diagnostics_status_mailbox->status[2].values.empty()) {
+						current_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
+						cout << "current_diagnostics_heartbeat_value set..." << endl;
+					} else {
+						cout << "Invalid status array values is empty" << endl;
+						return;
+					} 
+				} else {
+					cout << "Invalid status size: " << this->diagnostics_status_mailbox->status.size() << endl;
+					return;
+				}
+				
 				if ((current_diagnostics_heartbeat_value - previous_diagnostics_heartbeat_value) >= ((int)(elapsed_diagnostics_status_duration))){
 					// No Hearbeat Loss
 					current_heartbeat_loss_duration = 0.0;
