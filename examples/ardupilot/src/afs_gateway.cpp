@@ -131,16 +131,17 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				if (previous_diagnostics_heartbeat_value < 0){
 					// first time
 					cout << "First time diagnostics status message..." << endl;
-					if (this->diagnostics_status_mailbox->status.size() > 2 &&
-						!this->diagnostics_status_mailbox->status[2].values.empty()) {
-						previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
-						cout << "previous_diagnostics_status_time set..." << endl;
-						previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
-						cout << "previous_diagnostics_heartbeat_value set..." << endl;
+					if this->diagnostics_status_mailbox->status.size() > 2 {
+						if !this->diagnostics_status_mailbox->status[2].values.empty()) {
+							previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
+							previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
+						} else {
+							cout << "Invalid status array values is empty" << endl;
+						} 
+					} else {
+						cout << "Invalid status size: " << this->diagnostics_status_mailbox->status.size() << endl;
+						return;
 					}
-				} else {
-					cout << "Invalid status or values array" << endl;
-					return;
 				}
 
 				elapsed_diagnostics_status_duration = ((double)this->diagnostics_status_mailbox->header.stamp.sec - (double)previous_diagnostics_status_time.seconds());
