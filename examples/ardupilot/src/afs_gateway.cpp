@@ -127,33 +127,38 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 		}
 
 		if (this->diagnostics_status_mailbox) {
-			if (previous_diagnostics_heartbeat_value < 0){
-				// first time
+			try {
+				if (previous_diagnostics_heartbeat_value < 0){
+					// first time
+					cout << "First time diagnostics status message..."
+					previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
+					previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
+				}
+				elapsed_diagnostics_status_duration = ((double)this->diagnostics_status_mailbox->header.stamp.sec - (double)previous_diagnostics_status_time.seconds());
+				elapsed_diagnostics_status_duration += (((double)this->diagnostics_status_mailbox->header.stamp.nanosec - (double)previous_diagnostics_status_time.nanoseconds())/1000000000.0);
+				current_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
+				if ((current_diagnostics_heartbeat_value - previous_diagnostics_heartbeat_value) >= ((int)(elapsed_diagnostics_status_duration))){
+					// No Hearbeat Loss
+					current_heartbeat_loss_duration = 0.0;
+				} else {
+					// Hearbeat Loss
+					current_heartbeat_loss_duration += elapsed_diagnostics_status_duration;
+				}
+
+				cout << "AFS Gateway at (" << current_time.seconds() << "s, " << current_time.nanoseconds() << "ns) "
+						<< "Diagnostic Status (name,heartbeat_key,hearbeat_value,prev_hearbeat_value,elapsed(s),loss_duration(s)): " << "("
+						<< this->diagnostics_status_mailbox->status[2].name << ","
+						<< this->diagnostics_status_mailbox->status[2].values[0].key << ","
+						<< current_diagnostics_heartbeat_value  << "," << previous_diagnostics_heartbeat_value << ","
+						<< elapsed_diagnostics_status_duration << "," << current_heartbeat_loss_duration << ") "
+						<< "with status message at (" << this->diagnostics_status_mailbox->header.stamp.sec << "s, " << this->diagnostics_status_mailbox->header.stamp.nanosec << "ns) "
+						<< endl;
 				previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
 				previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
+				this->diagnostics_status_mailbox = NULL;
+			} catch (const std::exception& e) {
+				cout << "Exception in diagnostics processing: " << e.what() << endl;
 			}
-			elapsed_diagnostics_status_duration = ((double)this->diagnostics_status_mailbox->header.stamp.sec - (double)previous_diagnostics_status_time.seconds());
-			elapsed_diagnostics_status_duration += (((double)this->diagnostics_status_mailbox->header.stamp.nanosec - (double)previous_diagnostics_status_time.nanoseconds())/1000000000.0);
-			current_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
-			if ((current_diagnostics_heartbeat_value - previous_diagnostics_heartbeat_value) >= ((int)(elapsed_diagnostics_status_duration))){
-				// No Hearbeat Loss
-				current_heartbeat_loss_duration = 0.0;
-			} else {
-				// Hearbeat Loss
-				current_heartbeat_loss_duration += elapsed_diagnostics_status_duration;
-			}
-
-			cout << "AFS Gateway at (" << current_time.seconds() << "s, " << current_time.nanoseconds() << "ns) "
-					<< "Diagnostic Status (name,heartbeat_key,hearbeat_value,prev_hearbeat_value,elapsed(s),loss_duration(s)): " << "("
-					<< this->diagnostics_status_mailbox->status[2].name << ","
-					<< this->diagnostics_status_mailbox->status[2].values[0].key << ","
-					<< current_diagnostics_heartbeat_value  << "," << previous_diagnostics_heartbeat_value << ","
-					<< elapsed_diagnostics_status_duration << "," << current_heartbeat_loss_duration << ") "
-					<< "with status message at (" << this->diagnostics_status_mailbox->header.stamp.sec << "s, " << this->diagnostics_status_mailbox->header.stamp.nanosec << "ns) "
-					<< endl;
-			previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
-			previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
-			this->diagnostics_status_mailbox = NULL;
 		} else {
 			cout << "Diagnostics status mailbox is null" << endl;
 		}
