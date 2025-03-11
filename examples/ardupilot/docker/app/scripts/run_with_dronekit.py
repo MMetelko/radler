@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import argparse
-from dronekit import connect, VehicleMode, LocationGlobalRelative
+from dronekit import connect, VehicleMode, LocationGlobalRelative, Command
 import time
 from math import radians, sin, cos
 from pymavlink import mavutil
@@ -114,6 +114,80 @@ class DroneController:
         finally:
             print("Completed vehicle operations.")
     
+    # Function to enable or disable the GPS
+    def config_gps_enable_param(self):
+        #MM TODO: determine command for SIM_GPS_TYPE, below is battery for an example
+        #"""
+        #Send a custom MAVLink command to turn on and off GPS system in the simulation.
+        #"""
+        #msg = self.vehicle.message_factory.command_long_encode(
+        #    self.target_system, 
+        #    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
+        #    mavutil.mavlink.MAV_CMD_BATTERY_RESET, # command
+        #    0,    # confirmation
+        #    -1, 100, 0, 0, 0, 0, 0  
+        #)
+        
+        #self.vehicle.send_mavlink(msg)
+        #self.vehicle.flush()
+        #print("Battery reset command sent.")
+        pass
+    
+    # Load simulation parameters
+    def load_sim_params(self):
+        #with open(filename, 'r') as f:
+        #    for line in f:
+        #        if line.startswith('#'):
+        #            continue
+        #        param, value = line.strip().split()
+        #        self.vehicle.parameters[param] = float(value)
+        #    print("Parameters loaded.  Waiting for them to take effect...")
+        #    self.vehicle.wait_ready('parameters', timeout=300)
+        pass
+    
+    # Upload Mission Waypoints
+    def load_mission_waypoints(self):
+        # Clear any existing missions
+        #cmds = self.vehicle.commands
+        #cmds.clear()
+        #cmds.upload()
+
+        # Define mission waypoints
+        #waypoints = [
+        #    (latitude1, longitude1, altitude1),
+        #    (latitude2, longitude2, altitude2),
+            # Add more waypoints as needed
+        #]
+
+        # Add waypoints to the mission
+        #for i, wp in enumerate(waypoints):
+        #    cmd = Command(0, 0, 0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 0, 0, 0, 0, 0, wp[0], wp[1], wp[2])
+        #    cmds.add(cmd)
+
+        # Upload mission
+        #cmds.upload()
+        pass
+    
+    # Setup Geofence
+    def load_geofence(self):
+        # read fence parameters from file
+        #fence_points = [
+        #    (latitude1, longitude1),
+        #    (latitude2, longitude2),
+        #]
+        #
+        #for point in fence_points:
+        #    self.vehicle.message_factory.send_mavlink(self.vehicle.message_factory.command_long_encode(
+        #        0, 0,
+        #        mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
+        #        0,
+        #        0, 0, 0, 0,
+        #        point[0], point[1], 0
+        #    ))
+        #self.vehicle.parameters['FENCE_ENABLE'] = 1
+        
+        pass
+    
     # Function to send custom MAVLink battery reset command
     def send_batreset(self):
         """
@@ -130,6 +204,12 @@ class DroneController:
         self.vehicle.send_mavlink(msg)
         self.vehicle.flush()
         print("Battery reset command sent.")
+        
+    #MM TODO: need to add code to return to base (what the previous radler low battery code would do)
+    # Return to takeoff point, then reset battery
+    def reset_simulation(self):
+        self.send_batreset()
+    
     
     def __del__(self):
         if self.vehicle is not None:
@@ -147,8 +227,10 @@ def main():
                         help="Relative Vertical movement, default is 100")
     parser.add_argument('--hortMovement', type=int, choices=range(-100, 101), default=100, metavar='[-100 to 100]',
                         help="Relative Horizontal movement, default is 100")
-    parser.add_argument('--altitude', type=int, choices=range(30, 51), default=30, metavar='[30 to 50]',
+    parser.add_argument('--altitude', type=int, choices=range(10, 200), default=30, metavar='[10 to 200]',
                         help="Altitude in meters, default of 30")
+    parser.add_argument('--disableGPS', action='store_true', help='Disable GPS')
+    parser.add_argument('--enableGPS', action='store_true', help='Enable GPS')
     parser.add_argument('--reset', action='store_true',
                         help="Reset the system battery")
     parser.add_argument('--runSimulation', action='store_true',
@@ -164,9 +246,24 @@ def main():
     controller = DroneController('127.0.0.1:14551')
     controller.connect()
     
+    gps_status_changed = False
+    
+    if args.disableGPS:
+        gps_enable = False
+        gps_status_changed = True
+    elif args.enableGPS:
+        gps_enable = True
+        gps_status_changed = True
+    else:
+        gps_enable = True
+        gps_status_changed = False
+        
+    if gps_status_changed:
+        controller.config_gps_enable_param()
+    
     # Process the arguments
     if args.reset:
-        controller.send_batreset()
+        controller.reset_simulation()
         print("System Battery Power is reset")
         return
 

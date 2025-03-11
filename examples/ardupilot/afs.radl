@@ -135,7 +135,7 @@ plant : plant {
 			OS linux {
 				NODES_UID 1000
 				IMG "linux.img"
-				IP 192.168.1.100
+				IP 172.18.0.2
 				NODES
 					afs_gateway
 					afs_function
