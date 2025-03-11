@@ -131,7 +131,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				if (previous_diagnostics_heartbeat_value < 0){
 					// first time
 					cout << "First time diagnostics status message..." << endl;
-					if this->diagnostics_status_mailbox->status.size() > 2 {
+					if (this->diagnostics_status_mailbox->status.size() > 2) {
 						if !this->diagnostics_status_mailbox->status[2].values.empty() {
 							previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
 							previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
