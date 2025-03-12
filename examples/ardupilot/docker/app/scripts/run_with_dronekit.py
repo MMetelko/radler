@@ -5,6 +5,8 @@ from dronekit import connect, VehicleMode, LocationGlobalRelative, Command
 import time
 from math import radians, sin, cos
 from pymavlink import mavutil
+import csv
+import os
 
 
 class DroneController:
@@ -95,7 +97,7 @@ class DroneController:
                 break
             time.sleep(1)
 
-    def run_sim(self, vertMovement, hortMovement, altitude):
+    def run_sim(self, vertMovement, hortMovement, altitude, fixedMission):
         # Main script starts here
         try:
             print(f"Taking off to indicated altitude of {altitude} (in meters)")
@@ -103,8 +105,15 @@ class DroneController:
 
             time.sleep(10)
 
-            #print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
-            self.goto_position_ned(vertMovement, hortMovement, 0)
+            if fixedMission:
+                print("Changing to AUTO mode...")
+                self.vehicle.mode = VehicleMode("AUTO")
+                while self.vehicle.mode != 'AUTO':
+                    print(" Waiting for auto mode...")
+                    time.sleep(1)
+            else:
+                #print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
+                self.goto_position_ned(vertMovement, hortMovement, 0)
 
             #MM TODO: this may interfere with Radler battery low actions - checkout later
             #self.land_and_wait_for_altitude()
@@ -115,67 +124,80 @@ class DroneController:
             print("Completed vehicle operations.")
     
     # Function to enable or disable the GPS
-    def config_gps_enable_param(self):
-        #MM TODO: determine command for SIM_GPS_TYPE, below is battery for an example
-        #"""
-        #Send a custom MAVLink command to turn on and off GPS system in the simulation.
-        #"""
-        #msg = self.vehicle.message_factory.command_long_encode(
-        #    self.target_system, 
-        #    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-        #    mavutil.mavlink.MAV_CMD_BATTERY_RESET, # command
-        #    0,    # confirmation
-        #    -1, 100, 0, 0, 0, 0, 0  
-        #)
-        
-        #self.vehicle.send_mavlink(msg)
-        #self.vehicle.flush()
-        #print("Battery reset command sent.")
-        pass
-    
+    def config_gps_enable_param(self, gps_state):
+        # MM TODO: another idea of how to see gps setting
+        # Access GPS information
+        # gps = vehicle.gps_0
+
+        # print(f"GPS: {gps}")
+        # print(f"Fix type: {gps.fix_type}")
+        # print(f"Num satellites: {gps.satellites_visible}")
+        # print(f"Latitude: {gps.lat}")
+        # print(f"Longitude: {gps.lon}")
+        # print(f"Altitude: {gps.alt}")
+
+        if gps_state:
+            self.vehicle.parameters['GPS1_TYPE'] = 1
+        else:
+            self.vehicle.parameters['GPS1_TYPE'] = 0            
+
+        # Verify the change
+        print(f"Adjusted GPS1_TYPE value: {self.vehicle.parameters['GPS1_TYPE']}")
+        self.vehicle.wait_ready('parameters', timeout=300)
+           
     # Load simulation parameters
     def load_sim_params(self):
-        #with open(filename, 'r') as f:
-        #    for line in f:
-        #        if line.startswith('#'):
-        #            continue
-        #        param, value = line.strip().split()
-        #        self.vehicle.parameters[param] = float(value)
-        #    print("Parameters loaded.  Waiting for them to take effect...")
-        #    self.vehicle.wait_ready('parameters', timeout=300)
-        pass
-    
+        sim_parameters_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "sim_parameters.txt")
+        with open(sim_parameters_file_path, 'r') as f:
+            for line in f:
+                if line.startswith('#'):
+                    continue
+                name, value = line.strip().split('=')
+                self.vehicle.parameters[name.strip()] = float(value.strip())
+                time.sleep(0.1)  # Small delay to avoid overwhelming the connection
+
+            print("Parameters loaded.  Waiting for them to take effect...")
+            self.vehicle.wait_ready('parameters', timeout=300)
+   
     # Upload Mission Waypoints
     def load_mission_waypoints(self):
         # Clear any existing missions
-        #cmds = self.vehicle.commands
-        #cmds.clear()
-        #cmds.upload()
-
-        # Define mission waypoints
-        #waypoints = [
-        #    (latitude1, longitude1, altitude1),
-        #    (latitude2, longitude2, altitude2),
-            # Add more waypoints as needed
-        #]
-
-        # Add waypoints to the mission
-        #for i, wp in enumerate(waypoints):
-        #    cmd = Command(0, 0, 0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 0, 0, 0, 0, 0, wp[0], wp[1], wp[2])
-        #    cmds.add(cmd)
-
-        # Upload mission
-        #cmds.upload()
-        pass
+        cmds = self.vehicle.commands
+        cmds.clear()
+        cmds.upload()
+        
+        mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
+        with open(mission_waypoint_file_path, 'r') as f:
+            reader = csv.reader(f)
+            next(reader)  # Skip header row
+            for row in reader:
+                lat, lon, alt = map(float, row[:3])
+                cmd = Command(0, 0, 0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+                            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 0, 0, 0, 0, 0,
+                            lat, lon, alt)
+                cmds.add(cmd)
+        cmds.upload()
+        print(f"Mission uploaded: {cmds.count} waypoints")
+        self.vehicle.wait_ready('parameters', timeout=300)
     
     # Setup Geofence
     def load_geofence(self):
-        # read fence parameters from file
-        #fence_points = [
-        #    (latitude1, longitude1),
-        #    (latitude2, longitude2),
-        #]
-        #
+        fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
+        with open(fence_file_path, 'r') as f:
+            points = [line.strip().split(',') for line in f if line.strip()]
+        
+        # Send fence point count
+        self.vehicle.message_factory.fence_point_count_send(0, 0, len(points))
+        
+        # Send fence points
+        for i, point in enumerate(points):
+            lat, lon = map(float, point)
+            self.vehicle.message_factory.fence_point_send(0, 0, i, lat, lon)
+        
+        print(f"Fence uploaded: {len(points)} points")
+        self.vehicle.wait_ready('parameters', timeout=300)
+        
+        #MM TODO: if the above does not work, try this mavlink setup
         #for point in fence_points:
         #    self.vehicle.message_factory.send_mavlink(self.vehicle.message_factory.command_long_encode(
         #        0, 0,
@@ -185,9 +207,7 @@ class DroneController:
         #        point[0], point[1], 0
         #    ))
         #self.vehicle.parameters['FENCE_ENABLE'] = 1
-        
-        pass
-    
+           
     # Function to send custom MAVLink battery reset command
     def send_batreset(self):
         """
@@ -205,8 +225,7 @@ class DroneController:
         self.vehicle.flush()
         print("Battery reset command sent.")
         
-    #MM TODO: need to add code to return to base (what the previous radler low battery code would do)
-    # Return to takeoff point, then reset battery
+    # Reset battery
     def reset_simulation(self):
         self.send_batreset()
     
@@ -233,8 +252,11 @@ def main():
     parser.add_argument('--enableGPS', action='store_true', help='Enable GPS')
     parser.add_argument('--reset', action='store_true',
                         help="Reset the system battery")
-    parser.add_argument('--runSimulation', action='store_true',
+
+    subparsers = parser.add_subparsers(dest='command')
+    run_sim_parser = subparsers.add_parser('--runSimulation', action='store_true',
                         help="Run the simulation")
+    run_sim_parser.add_argument('--useWaypoints', action='store_true', help='Use mission waypoints in simulation')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -259,7 +281,7 @@ def main():
         gps_status_changed = False
         
     if gps_status_changed:
-        controller.config_gps_enable_param()
+        controller.config_gps_enable_param(gps_enable)
     
     # Process the arguments
     if args.reset:
@@ -268,11 +290,21 @@ def main():
         return
 
     if args.runSimulation:
-        print("Running simulation with:")
-        print(f"Vertical Movement: {args.vertMovement}")
-        print(f"Horizontal Movement: {args.hortMovement}")
-        print(f"Altitude: {args.altitude} meters")
-        controller.run_sim(args.vertMovement, args.hortMovement, args.altitude)
+        fixedMission = False
+        if args.useWaypoints:
+            print("Running simulation with Mission Waypoints:")
+            print(f"Altitude: {args.altitude} meters")
+            fixedMission = True
+            #controller.load_sim_params()
+            controller.load_mission_waypoints()
+            controller.load_geofence()
+        else:
+            print("Running simulation with:")
+            print(f"Vertical Movement: {args.vertMovement}")
+            print(f"Horizontal Movement: {args.hortMovement}")
+            print(f"Altitude: {args.altitude} meters")
+            
+        controller.run_sim(args.vertMovement, args.hortMovement, args.altitude, fixedMission)
               
     del controller
 
