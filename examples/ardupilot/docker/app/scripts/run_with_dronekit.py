@@ -97,15 +97,15 @@ class DroneController:
                 break
             time.sleep(1)
 
-    def run_sim(self, vertMovement, hortMovement, altitude, fixedMission):
+    def run_sim(self, vertMovement=100, hortMovement=100, altitude=30, use_waypoints=False):
         # Main script starts here
         try:
             print(f"Taking off to indicated altitude of {altitude} (in meters)")
             self.arm_and_takeoff(altitude)
 
-            time.sleep(10)
+            time.sleep(120)
 
-            if fixedMission:
+            if use_waypoints:
                 print("Changing to AUTO mode...")
                 self.vehicle.mode = VehicleMode("AUTO")
                 while self.vehicle.mode != 'AUTO':
@@ -125,17 +125,6 @@ class DroneController:
     
     # Function to enable or disable the GPS
     def config_gps_enable_param(self, gps_state):
-        # MM TODO: another idea of how to see gps setting
-        # Access GPS information
-        # gps = vehicle.gps_0
-
-        # print(f"GPS: {gps}")
-        # print(f"Fix type: {gps.fix_type}")
-        # print(f"Num satellites: {gps.satellites_visible}")
-        # print(f"Latitude: {gps.lat}")
-        # print(f"Longitude: {gps.lon}")
-        # print(f"Altitude: {gps.alt}")
-
         if gps_state:
             self.vehicle.parameters['GPS1_TYPE'] = 1
         else:
@@ -163,51 +152,72 @@ class DroneController:
     def load_mission_waypoints(self):
         # Clear any existing missions
         cmds = self.vehicle.commands
+        #MM TODO: do I need to do cmds.download()  first? then cmds.wait_ready() - this will be a backup idea
         cmds.clear()
         cmds.upload()
         
         mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
         with open(mission_waypoint_file_path, 'r') as f:
-            reader = csv.reader(f)
-            next(reader)  # Skip header row
-            for row in reader:
-                lat, lon, alt = map(float, row[:3])
-                cmd = Command(0, 0, 0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
-                            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 0, 0, 0, 0, 0,
-                            lat, lon, alt)
-                cmds.add(cmd)
+            next(f)  # Skip header row
+            for line in f:
+                parts = line.strip().split('\t')
+                if len(parts) == 12:
+                    seq, currentwp, frame, command, param1, param2, param3, param4, x, y, z, autocontinue = parts
+                    cmd = mavutil.mavlink.MAVLink_mission_item_int_message(
+                                self.target_system, 
+                                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
+                                int(seq), int(frame), int(command), 
+                                int(currentwp), int(autocontinue),
+                                float(param1), float(param2), float(param3), float(param4),
+                                int(float(x) * 1e7), int(float(y) * 1e7), float(z))
+                    cmds.add(cmd)
+        
         cmds.upload()
         print(f"Mission uploaded: {cmds.count} waypoints")
-        self.vehicle.wait_ready('parameters', timeout=300)
+        self.vehicle.wait_ready('parameters', timeout=300)            
     
     # Setup Geofence
     def load_geofence(self):
+        # First setup the desired parameters
+        fence_params = {
+            'FENCE_ACTION': 1,
+            'FENCE_ALT_MAX': 150.0,
+            'FENCE_RADIUS': 500.0,
+            'FENCE_ENABLE': 1,
+            'FENCE_TOTAL': 8,
+            'FENCE_TYPE': 7
+        }
+        
+        for param, value in fence_params.items():
+            self.vehicle.parameters[param] = value
+            print(f"{param}: {self.vehicle.parameters[param]}")
+        
+        # Load fence.txt file
         fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
         with open(fence_file_path, 'r') as f:
-            points = [line.strip().split(',') for line in f if line.strip()]
+            points = [line.strip().split('\t') for line in f if line.strip()]
         
-        # Send fence point count
-        self.vehicle.message_factory.fence_point_count_send(0, 0, len(points))
-        
-        # Send fence points
+        # Set fence points
         for i, point in enumerate(points):
             lat, lon = map(float, point)
-            self.vehicle.message_factory.fence_point_send(0, 0, i, lat, lon)
-        
-        print(f"Fence uploaded: {len(points)} points")
-        self.vehicle.wait_ready('parameters', timeout=300)
-        
-        #MM TODO: if the above does not work, try this mavlink setup
-        #for point in fence_points:
-        #    self.vehicle.message_factory.send_mavlink(self.vehicle.message_factory.command_long_encode(
-        #        0, 0,
-        #        mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
-        #        0,
-        #        0, 0, 0, 0,
-        #        point[0], point[1], 0
-        #    ))
-        #self.vehicle.parameters['FENCE_ENABLE'] = 1
-           
+            cmd = self.vehicle.message_factory.command_long_encode(
+                0, 0,    # target system, target component
+                mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION, # command
+                0,       # confirmation
+                i,       # param1: vertex index
+                0,       # param2: total vertices
+                0,       # param3: reserved
+                0,       # param4: reserved
+                lat,     # param5: latitude
+                lon,     # param6: longitude
+                0        # param7: reserved
+            )
+            self.vehicle.send_mavlink(cmd)
+            self.vehicle.flush()   
+                 
+            print(f"Fence uploaded: {len(points)} points")
+            self.vehicle.wait_ready('parameters', timeout=300)
+
     # Function to send custom MAVLink battery reset command
     def send_batreset(self):
         """
@@ -241,70 +251,55 @@ def main():
     # Create the parser
     parser = argparse.ArgumentParser(description="Running Ardupilot Flight Sequence with dronekit API")
 
+
+    subparsers = parser.add_subparsers(dest='command', required=True)
+    
     # Add the arguments
-    parser.add_argument('--vertMovement', type=int, choices=range(-100, 101), default=100, metavar='[-100 to 100]',
-                        help="Relative Vertical movement, default is 100")
-    parser.add_argument('--hortMovement', type=int, choices=range(-100, 101), default=100, metavar='[-100 to 100]',
-                        help="Relative Horizontal movement, default is 100")
-    parser.add_argument('--altitude', type=int, choices=range(10, 200), default=30, metavar='[10 to 200]',
-                        help="Altitude in meters, default of 30")
-    parser.add_argument('--disableGPS', action='store_true', help='Disable GPS')
-    parser.add_argument('--enableGPS', action='store_true', help='Enable GPS')
-    parser.add_argument('--reset', action='store_true',
-                        help="Reset the system battery")
+    subparsers.add_parser('disableGPS', help='Disable GPS')
+    subparsers.add_parser('enableGPS', help='Enable GPS')
+    subparsers.add_parser('reset', help='Reset the system battery')
 
-    subparsers = parser.add_subparsers(dest='command')
-    run_sim_parser = subparsers.add_parser('--runSimulation', action='store_true',
-                        help="Run the simulation")
-    run_sim_parser.add_argument('--useWaypoints', action='store_true', help='Use mission waypoints in simulation')
+    run_sim_parser = subparsers.add_parser('runSimulation', help='Run the simulation')
+    run_sim_group = run_sim_parser.add_mutually_exclusive_group(required=True)
 
+    run_sim_group.add_argument('--useWaypoints', action='store_true', help='Use mission waypoints in simulation')
+    
+    movement_group = run_sim_group.add_argument_group('movement')
+    movement_group.add_argument('--vertMovement', type=int, choices=range(-100, 101), metavar='[-100 to 100]',
+                        help="Relative Vertical movement")
+    movement_group.add_argument('--hortMovement', type=int, choices=range(-100, 101), metavar='[-100 to 100]',
+                        help="Relative Horizontal movement")
+    
+    run_sim_parser.add_argument('--altitude', type=int, choices=range(10, 200), metavar='[10 to 200]',
+                        help="Altitude in meters (required)", required=True)
+    
     # Parse the arguments
     args = parser.parse_args()
 
     # Connect to the vehicle (ARDUPILOT SIMULATOR)
     print("Connecting to vehicle on: '127.0.0.1:14551'")
     
-    #MM TODO: vehicle = connect('127.0.0.1:14550', wait_ready=True)
     controller = DroneController('127.0.0.1:14551')
     controller.connect()
     
-    gps_status_changed = False
-    
-    if args.disableGPS:
-        gps_enable = False
-        gps_status_changed = True
-    elif args.enableGPS:
-        gps_enable = True
-        gps_status_changed = True
-    else:
-        gps_enable = True
-        gps_status_changed = False
-        
-    if gps_status_changed:
-        controller.config_gps_enable_param(gps_enable)
-    
-    # Process the arguments
-    if args.reset:
+    if args.command == 'disableGPS':
+        controller.config_gps_enable_param(False)
+    elif args.command == 'enableGPS':
+        controller.config_gps_enable_param(True)
+    elif args.command == 'reset':
         controller.reset_simulation()
         print("System Battery Power is reset")
         return
-
-    if args.runSimulation:
-        fixedMission = False
+    elif args.command == 'runSimulation':
         if args.useWaypoints:
-            print("Running simulation with Mission Waypoints:")
-            print(f"Altitude: {args.altitude} meters")
-            fixedMission = True
+            print(f"Running simulation with Mission Waypoints. Takeoff altitude: {args.altitude} meters")
             #controller.load_sim_params()
             controller.load_mission_waypoints()
             controller.load_geofence()
+            controller.run_sim(altitude=args.altitude, use_waypoints=True)
         else:
-            print("Running simulation with:")
-            print(f"Vertical Movement: {args.vertMovement}")
-            print(f"Horizontal Movement: {args.hortMovement}")
-            print(f"Altitude: {args.altitude} meters")
-            
-        controller.run_sim(args.vertMovement, args.hortMovement, args.altitude, fixedMission)
+            print(f"Running simulation with Vertical: {args.vertMovement}, Horizontal: {args.hortMovement}, Altitude: {args.altitude} (in meters) ")
+            controller.run_sim(vertMovement=args.vertMovement, hortMovement=args.hortMovement, altitude=args.altitude)
               
     del controller
 
