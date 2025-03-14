@@ -209,14 +209,16 @@ class DroneController:
                 cmd = self.vehicle.message_factory.command_long_encode(
                     self.target_system, 
                     mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
+                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
                     mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION, # command
                     0,       # confirmation
+                    0,       # unused
                     i,       # param1: vertex index
                     len(points),       # param2: total vertices
                     0,       # param3: reserved
                     0,       # param4: reserved
-                    lat,     # param5: latitude
-                    lon,     # param6: longitude
+                    int(lat * 1e7),     # param5: latitude
+                    int(lon * 1e7),     # param6: longitude
                     0        # param7: reserved
                 )
                 self.vehicle.send_mavlink(cmd)
