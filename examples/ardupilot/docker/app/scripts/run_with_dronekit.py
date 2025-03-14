@@ -251,7 +251,6 @@ def main():
     # Create the parser
     parser = argparse.ArgumentParser(description="Running Ardupilot Flight Sequence with dronekit API")
 
-
     subparsers = parser.add_subparsers(dest='command', required=True)
     
     # Add the arguments
@@ -260,7 +259,7 @@ def main():
     subparsers.add_parser('reset', help='Reset the system battery')
 
     run_sim_parser = subparsers.add_parser('runSimulation', help='Run the simulation')
-    run_sim_group = run_sim_parser.add_mutually_exclusive_group(required=True)
+    run_sim_group = run_sim_parser.add_mutually_exclusive_group()
 
     run_sim_group.add_argument('--useWaypoints', action='store_true', help='Use mission waypoints in simulation')
     
@@ -277,9 +276,10 @@ def main():
     args = parser.parse_args()
 
     # Connect to the vehicle (ARDUPILOT SIMULATOR)
-    print("Connecting to vehicle on: '127.0.0.1:14551'")
+    vehicle_connection = 'udp:127.0.0.1:14551'
+    print(f"Connecting to vehicle on: {vehicle_connection}")
     
-    controller = DroneController('127.0.0.1:14551')
+    controller = DroneController(vehicle_connection)
     controller.connect()
     
     if args.command == 'disableGPS':
