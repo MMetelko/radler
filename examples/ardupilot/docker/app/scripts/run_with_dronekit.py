@@ -18,7 +18,27 @@ class DroneController:
         self.vehicle = connect(self.connection_str, wait_ready=True)
         self.target_system = self.vehicle._master.target_system
         print(f"Connected to the vehicle with target system ID = {self.target_system}.")
+        self.setup_listeners()
+
+    def listeners(self):
+        @self.vehicle.on_attribute('last_heartbeat')
+        def heartbeat_timeout(self, attr_name, value):
+            if value > 30:
+                print("No heartbeat in 30 seconds")
+                self.reconnect()
         
+    def reconnect(self):
+        while True:
+            try:
+                self.vehicle.close()
+                self.vehicle = connect(self.connection_str, wait_ready=True, timeout=30)
+                print("Successfully reconnected to vehicle.")
+                self.setup_listeners()
+                return
+            except:
+                print("Connection failed. Retrying in 5 seconds...")
+                time.sleep(5)
+       
     def arm_and_takeoff(self, aTargetAltitude):
         """
         Arms the vehicle and flies to aTargetAltitude.
@@ -109,13 +129,19 @@ class DroneController:
 
             if use_waypoints:
                 # Stay at the altitude for 3 minutes
-                time.sleep(180)
-            
-                print("Changing to AUTO mode...")
-                self.vehicle.mode = VehicleMode("AUTO")
-                while self.vehicle.mode != 'AUTO':
-                    print(" Waiting for auto mode...")
-                    time.sleep(1)
+                #time.sleep(180)
+                # If geofence breach happens, it does RTL
+                if self.vehicle.mode != 'RTL':
+                    self.vehicle.mode = VehicleMode("AUTO")
+                    while self.vehicle.mode != 'AUTO':
+                        print(" Waiting for auto mode...")
+                        time.sleep(1)
+                    print("Changing to AUTO mode...")
+                    # After mission completes, the mode switches to RTL
+                    while self.vehicle.mode != 'RTL':
+                        print(f" Currently on command: {self.vehicle.commands.next}...")
+                        time.sleep(1)
+                    print("Mission Complete!  Returning to launch...")
             else:
                 #print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
                 self.goto_position_ned(vertMovement, hortMovement, 0)
@@ -274,6 +300,7 @@ class DroneController:
         
     def wait_for_disarm(self):
         while self.vehicle.armed:
+            print(" Waiting for disarmed mode...")
             time.sleep(1)
         print("Vehicle is disarmed")
 
