@@ -20,7 +20,7 @@ class DroneController:
         print(f"Connected to the vehicle with target system ID = {self.target_system}.")
         self.setup_listeners()
 
-    def listeners(self):
+    def setup_listeners(self):
         @self.vehicle.on_attribute('last_heartbeat')
         def heartbeat_timeout(self, attr_name, value):
             if value > 30:
@@ -132,13 +132,14 @@ class DroneController:
                 #time.sleep(180)
                 # If geofence breach happens, it does RTL
                 if self.vehicle.mode != 'RTL':
+                    print("Changing to AUTO mode...")
                     self.vehicle.mode = VehicleMode("AUTO")
                     while self.vehicle.mode != 'AUTO':
                         print(" Waiting for auto mode...")
                         time.sleep(1)
-                    print("Changing to AUTO mode...")
-                    # After mission completes, the mode switches to RTL
-                    while self.vehicle.mode != 'RTL':
+                    print("Starting mission ...")
+                    # After mission completes, the mode switches to RTL and then disarms
+                    while self.vehicle.armed:
                         print(f" Currently on command: {self.vehicle.commands.next}...")
                         time.sleep(1)
                     print("Mission Complete!  Returning to launch...")
@@ -253,28 +254,30 @@ class DroneController:
                 self.vehicle.send_mavlink(cmd)
                 self.vehicle.flush()   
                     
-                print(f"Fence uploaded: {len(points)} points")
-                self.vehicle.wait_ready('parameters', timeout=300)
+            self.vehicle.parameters.fetch_all()
+            time.sleep(2)
+            print(f"Fence uploaded: {len(points)} points")
+            self.vehicle.wait_ready('parameters', timeout=300)
 
-                # Verify fence points
-                if self.vehicle.parameters['FENCE_TOTAL'] == len(points):
-                    print("Geofence successfully uploaded and verified.")
-                else:
-                    print("Geofence upload may have failed. Please verify.")
-                    
-                # Show the fence
-                msg = self.vehicle.message_factory.command_long_encode(
-                    self.target_system, 
-                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                    mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
-                    0,       # confirmation
-                    2,       # param1: 2 for show fence
-                    0, 0, 0, 0, 0, 0
-                )  # param2-7 not used
-                self.vehicle.send_mavlink(msg)
-                self.vehicle.flush()
-                print("Geofence made visible.")
-                self.vehicle.wait_ready('parameters', timeout=300)
+            # Verify fence points
+            if self.vehicle.parameters['FENCE_TOTAL'] == len(points):
+                print("Geofence successfully uploaded and verified.")
+            else:
+                print("Geofence upload may have failed. Please verify.")
+                
+            # Show the fence
+            msg = self.vehicle.message_factory.command_long_encode(
+                self.target_system, 
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
+                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
+                0,       # confirmation
+                2,       # param1: 2 for show fence
+                0, 0, 0, 0, 0, 0
+            )  # param2-7 not used
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+            print("Geofence made visible.")
+            self.vehicle.wait_ready('parameters', timeout=300)
     
         except Exception as e:
             print(f"Error loading geofence: {str(e)}")
