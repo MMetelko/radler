@@ -66,8 +66,8 @@ class DroneController:
         newlon = original_location.lon + dLon * (180.0 / 3.14159)
         newalt = original_location.alt + altDelta
         return LocationGlobalRelative(newlat, newlon, newalt)
-
-    def goto_position_ned(self, dNorth, dEast, dAlt):
+    
+    def goto_position_ned(self, dNorth, dEast, dAlt, tolerance=1):
         """
         Move the vehicle to a position `dNorth` and `dEast` meters away from the current position, maintaining altitude change `dAlt`.
         """
@@ -75,9 +75,13 @@ class DroneController:
         target_location = self.get_location_offset_meters(current_location, dNorth, dEast, dAlt)
         print(f"Moving to relative position (NORTH: {dNorth}m, EAST: {dEast}m, ALT: {dAlt}m)")
         self.vehicle.simple_goto(target_location)
-        # Adjust time to ensure vehicle reaches the target
-        #MM TODO: adjust this value to meet the needs of the radler system.  In other words, make sure the return is due to battery level, not block by this timeout.
-        time.sleep(60)
+        while True:
+            current_location = self.vehicle.location.global_relative_frame
+            dist = self.get_location_offset_meters(current_location, dNorth, dEast, dAlt)
+            if dist <= tolerance:
+                print("Reached target location")
+                break
+            time.sleep(1)
 
     def land_and_wait_for_altitude(self):
         """
@@ -103,9 +107,10 @@ class DroneController:
             print(f"Taking off to indicated altitude of {altitude} (in meters)")
             self.arm_and_takeoff(altitude)
 
-            time.sleep(120)
-
             if use_waypoints:
+                # Stay at the altitude for 3 minutes
+                time.sleep(180)
+            
                 print("Changing to AUTO mode...")
                 self.vehicle.mode = VehicleMode("AUTO")
                 while self.vehicle.mode != 'AUTO':
@@ -209,16 +214,14 @@ class DroneController:
                 cmd = self.vehicle.message_factory.command_long_encode(
                     self.target_system, 
                     mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                    mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
                     mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION, # command
                     0,       # confirmation
-                    0,       # unused
                     i,       # param1: vertex index
                     len(points),       # param2: total vertices
                     0,       # param3: reserved
                     0,       # param4: reserved
-                    int(lat * 1e7),     # param5: latitude
-                    int(lon * 1e7),     # param6: longitude
+                    int(float(lat) * 1e7),     # param5: latitude
+                    int(float(lon) * 1e7),     # param6: longitude
                     0        # param7: reserved
                 )
                 self.vehicle.send_mavlink(cmd)
@@ -255,28 +258,63 @@ class DroneController:
         """
         Send a custom MAVLink command to reset the battery state in the simulation.
         """
-        msg = self.vehicle.message_factory.command_long_encode(
-            self.target_system, 
-            mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-            mavutil.mavlink.MAV_CMD_BATTERY_RESET, # command
-            0,    # confirmation
-            -1, 100, 0, 0, 0, 0, 0  
-        )
+        try:
+            msg = self.vehicle.message_factory.command_long_encode(
+                self.target_system, 
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
+                mavutil.mavlink.MAV_CMD_BATTERY_RESET, # command
+                0,    # confirmation
+                -1, 100, 0, 0, 0, 0, 0  
+            )      
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+            print("Battery reset command sent.")
+        except Exception as e:
+            print(f"Error resetting Battery level: {str(e)}")
         
-        self.vehicle.send_mavlink(msg)
-        self.vehicle.flush()
-        # Make sure the vehicle is sent back to the landing spot, 
-        # after landing the mode becomes 'STANDBY'
-        self.vehicle.mode = VehicleMode("RTL")
-        while self.vehicle.mode != 'STANDBY':
-            print(" Waiting for STANDBY mode...")
+    def wait_for_disarm(self):
+        while self.vehicle.armed:
             time.sleep(1)
-        print("Battery reset command sent and vehicle sent back to the launch location. Vehicle is now in STANDBY mode.")
+        print("Vehicle is disarmed")
+
+    def emergency_reset(self):
+        self.vehicle.mode = VehicleMode("GUIDED")
+        while self.vehicle.mode != 'GUIDED':
+            print(" Waiting for guiding mode...")
+            time.sleep(1)
+
+        self.vehicle.mode = VehicleMode("RTL")
+        while self.vehicle.mode != 'RTL':
+            print(" Waiting for RTL mode...")
+            time.sleep(1)
+            
+        self.wait_for_disarm()
         
+        self.vehicle.mode = VehicleMode("STABILIZE")
+        while self.vehicle.mode != 'STABILIZE':
+            print(" Waiting for stabilize mode...")
+            time.sleep(1)
+        print("Emergency reset complete")
+       
     # Reset battery
     def reset_simulation(self):
+        # Make sure flight mode is reset
+        if self.vehicle.mode == 'AUTO':
+            self.emergency_reset()
+        else:
+            # After a flight (successful mission flight or guided/landed flight), 
+            # the RTL mode would have been commanded and will end up in "DISARMED"
+            # Set back to "STABILIZE" to be prepared for the next flight.
+            self.wait_for_disarm()
+                
+            self.vehicle.mode = VehicleMode("STABILIZE")
+            while self.vehicle.mode != 'STABILIZE':
+                print(" Waiting for stabilize mode...")
+                time.sleep(1)
+            
+            print("Vehicle is now in STABILIZE mode.")
+        
         self.send_batreset()
-    
     
     def __del__(self):
         if self.vehicle is not None:
