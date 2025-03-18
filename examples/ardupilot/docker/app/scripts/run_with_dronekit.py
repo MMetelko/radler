@@ -15,7 +15,7 @@ class DroneController:
         self.vehicle = None
     
     def connect(self):
-        self.vehicle = connect(self.connection_str, wait_ready=True)
+        self.vehicle = connect(self.connection_str, wait_ready=True, timeout=60)
         self.target_system = self.vehicle._master.target_system
         print(f"Connected to the vehicle with target system ID = {self.target_system}.")
         self.setup_listeners()
@@ -28,16 +28,20 @@ class DroneController:
                 self.reconnect()
         
     def reconnect(self):
-        while True:
+        max_retries = 5
+        for attempt in range(max_retries):
             try:
-                self.vehicle.close()
-                self.vehicle = connect(self.connection_str, wait_ready=True, timeout=30)
+                if self.vehicle:
+                    self.vehicle.close()
+                self.vehicle = connect(self.connection_str, wait_ready=True, timeout=60)
                 print("Successfully reconnected to vehicle.")
                 self.setup_listeners()
-                return
-            except:
-                print("Connection failed. Retrying in 5 seconds...")
+                return True
+            except Exception as e:
+                print(f"Connection attempt {attempt+1} failed: {str(e)}")
                 time.sleep(5)
+        print("Failed to reconnect after maximum attempts.")
+        return False
        
     def arm_and_takeoff(self, aTargetAltitude):
         """
@@ -221,7 +225,6 @@ class DroneController:
                 'FENCE_ACTION': 1,
                 'FENCE_ALT_MAX': 150.0,
                 'FENCE_RADIUS': 500.0,
-                'FENCE_ENABLE': 1,
                 'FENCE_TOTAL': 8,
                 'FENCE_TYPE': 7
             }
@@ -235,27 +238,20 @@ class DroneController:
             with open(fence_file_path, 'r') as f:
                 points = [line.strip().split('\t') for line in f if line.strip()]
             
-            # Set fence points
+           # Set fence points
             for i, point in enumerate(points):
                 lat, lon = map(float, point)
-                cmd = self.vehicle.message_factory.command_long_encode(
-                    self.target_system, 
+                msg = self.vehicle.message_factory.fence_point_encode(
+                    self.target_system,
                     mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                    mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION, # command
-                    0,       # confirmation
-                    i,       # param1: vertex index
-                    len(points),       # param2: total vertices
-                    0,       # param3: reserved
-                    0,       # param4: reserved
-                    int(float(lat) * 1e7),     # param5: latitude
-                    int(float(lon) * 1e7),     # param6: longitude
-                    0        # param7: reserved
+                    i,
+                    len(points),
+                    lat,
+                    lon
                 )
-                self.vehicle.send_mavlink(cmd)
-                self.vehicle.flush()   
-                    
-            self.vehicle.parameters.fetch_all()
-            time.sleep(2)
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+
             print(f"Fence uploaded: {len(points)} points")
             self.vehicle.wait_ready('parameters', timeout=300)
 
@@ -363,6 +359,8 @@ def main():
     subparsers.add_parser('disableGPS', help='Disable GPS')
     subparsers.add_parser('enableGPS', help='Enable GPS')
     subparsers.add_parser('reset', help='Reset the system battery')
+    subparsers.add_parser('loadFence', help='Load the geofence file (fence.txt) and show fence on map')
+    subparsers.add_parser('loadMission', help='Load mission waypoints from file (mission.txt)')
 
     run_sim_parser = subparsers.add_parser('runSimulation', help='Run the simulation')
     run_sim_group = run_sim_parser.add_mutually_exclusive_group()
@@ -385,29 +383,36 @@ def main():
     vehicle_connection = 'udp:127.0.0.1:14551'
     print(f"Connecting to vehicle on: {vehicle_connection}")
     
-    controller = DroneController(vehicle_connection)
-    controller.connect()
+    try:
+        controller = DroneController(vehicle_connection)
+        controller.connect()
     
-    if args.command == 'disableGPS':
-        controller.config_gps_enable_param(False)
-    elif args.command == 'enableGPS':
-        controller.config_gps_enable_param(True)
-    elif args.command == 'reset':
-        controller.reset_simulation()
-        print("System Battery Power is reset")
-        return
-    elif args.command == 'runSimulation':
-        if args.useWaypoints:
-            print(f"Running simulation with Mission Waypoints. Takeoff altitude: {args.altitude} meters")
-            #controller.load_sim_params()
-            controller.load_mission_waypoints()
+        if args.command == 'disableGPS':
+            controller.config_gps_enable_param(False)
+        elif args.command == 'enableGPS':
+            controller.config_gps_enable_param(True)
+        elif args.command == 'reset':
+            controller.reset_simulation()
+            print("System Battery Power is reset")
+        elif args.command == 'loadFence':
             controller.load_geofence()
-            controller.run_sim(altitude=args.altitude, use_waypoints=True)
-        else:
-            print(f"Running simulation with Vertical: {args.vertMovement}, Horizontal: {args.hortMovement}, Altitude: {args.altitude} (in meters) ")
-            controller.run_sim(vertMovement=args.vertMovement, hortMovement=args.hortMovement, altitude=args.altitude)
-              
-    del controller
+        elif args.command == 'loadMission':
+            controller.load_mission_waypoints()
+        elif args.command == 'runSimulation':
+            if args.useWaypoints:
+                print(f"Running simulation with Mission Waypoints. Takeoff altitude: {args.altitude} meters")
+                #controller.load_sim_params()
+                controller.load_mission_waypoints()
+                controller.load_geofence()
+                controller.run_sim(altitude=args.altitude, use_waypoints=True)
+            else:
+                print(f"Running simulation with Vertical: {args.vertMovement}, Horizontal: {args.hortMovement}, Altitude: {args.altitude} (in meters) ")
+                controller.run_sim(vertMovement=args.vertMovement, hortMovement=args.hortMovement, altitude=args.altitude)
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+    finally:    
+        if 'controller' in locals():
+            del controller
 
 # Entry point
 if __name__ == "__main__":
