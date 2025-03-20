@@ -7,7 +7,10 @@ from math import radians, sin, cos
 from pymavlink import mavutil
 import csv
 import os
+import signal
+import sys
 
+controller = None
 
 class DroneController:
     def __init__(self, connection_str):
@@ -143,8 +146,12 @@ class DroneController:
                         time.sleep(1)
                     print("Starting mission ...")
                     # After mission completes, the mode switches to RTL and then disarms
+                    last_command = None
                     while self.vehicle.armed:
-                        print(f" Currently on command: {self.vehicle.commands.next}...")
+                        current_command = self.vehicle.commands.next
+                        if current_command != last_command:
+                            print(f" Currently on command: {current_command}...")
+                            last_command = current_command
                         time.sleep(1)
                     print("Mission Complete!  Returning to launch...")
             else:
@@ -341,15 +348,32 @@ class DroneController:
             print("Vehicle is now in STABILIZE mode.")
         
         self.send_batreset()
+        print("System Battery Power is reset")
+        
+    def reboot_autopilot(self):
+        print("Rebooting autopilot...")
+        self.vehicle.reboot()
+        print("Reboot command sent. Waiting for reboot...")
+        time.sleep(30)  # Wait for reboot
+        print("Ardupilot system has been rebooted")
     
-    def __del__(self):
+    def close(self):
         if self.vehicle is not None:
             print("Closing vehicle connection")
             self.vehicle.close()
             print("Vehicle connection closed.")
+            self.vehicle = None
 
 
 def main():
+    global controller
+    
+    def signal_handler(sig, frame):
+        print("Interrupt received, shutting down...")
+        if controller:
+            controller.close()
+        sys.exit(0)
+    
     # Create the parser
     parser = argparse.ArgumentParser(description="Running Ardupilot Flight Sequence with dronekit API")
 
@@ -359,6 +383,7 @@ def main():
     subparsers.add_parser('disableGPS', help='Disable GPS')
     subparsers.add_parser('enableGPS', help='Enable GPS')
     subparsers.add_parser('reset', help='Reset the system battery')
+    subparsers.add_parser('reboot', help='Reboot the Ardupilot simulation')
     subparsers.add_parser('loadFence', help='Load the geofence file (fence.txt) and show fence on map')
     subparsers.add_parser('loadMission', help='Load mission waypoints from file (mission.txt)')
 
@@ -386,6 +411,9 @@ def main():
     try:
         controller = DroneController(vehicle_connection)
         controller.connect()
+        
+        # Set up signal handler after creating controller
+        signal.signal(signal.SIGINT, signal_handler)
     
         if args.command == 'disableGPS':
             controller.config_gps_enable_param(False)
@@ -393,7 +421,8 @@ def main():
             controller.config_gps_enable_param(True)
         elif args.command == 'reset':
             controller.reset_simulation()
-            print("System Battery Power is reset")
+        elif args.command == 'reboot':
+            controller.reboot_autopilot()
         elif args.command == 'loadFence':
             controller.load_geofence()
         elif args.command == 'loadMission':
@@ -411,8 +440,8 @@ def main():
     except Exception as e:
         print(f"An error occurred: {str(e)}")
     finally:    
-        if 'controller' in locals():
-            del controller
+        if controller:
+            controller.close()
 
 # Entry point
 if __name__ == "__main__":
