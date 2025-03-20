@@ -419,6 +419,7 @@ def main():
             controller.config_gps_enable_param(False)
         elif args.command == 'enableGPS':
             controller.config_gps_enable_param(True)
+            controller.reboot_autopilot()
         elif args.command == 'reset':
             controller.reset_simulation()
         elif args.command == 'reboot':
