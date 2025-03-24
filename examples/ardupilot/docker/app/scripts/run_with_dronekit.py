@@ -154,6 +154,9 @@ class DroneController:
                             last_command = current_command
                         time.sleep(1)
                     print("Mission Complete!  Returning to launch...")
+                else:  # Fence was probably breached or battery too low, so vehicle got commanded to 'RTL'
+                    print("Mission has been interrupted by fail safe mechanisms of Radler.  Returning to launch...")
+
             else:
                 #print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
                 self.goto_position_ned(vertMovement, hortMovement, 0)
@@ -258,6 +261,7 @@ class DroneController:
                 )
                 self.vehicle.send_mavlink(msg)
                 self.vehicle.flush()
+                time.sleep(0.05)  # slight delay to ensure message delivery
 
             print(f"Fence uploaded: {len(points)} points")
             self.vehicle.wait_ready('parameters', timeout=300)
@@ -269,18 +273,19 @@ class DroneController:
                 print("Geofence upload may have failed. Please verify.")
                 
             # Show the fence
-            msg = self.vehicle.message_factory.command_long_encode(
-                self.target_system, 
-                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
-                0,       # confirmation
-                2,       # param1: 2 for show fence
-                0, 0, 0, 0, 0, 0
-            )  # param2-7 not used
-            self.vehicle.send_mavlink(msg)
+            self.vehicle.parameters['FENCE_ENABLE'] = 1
             self.vehicle.flush()
-            print("Geofence made visible.")
             self.vehicle.wait_ready('parameters', timeout=300)
+            
+            # Send `fence list` command to MAVProxy
+            self.vehicle._master.mav.command_long_send(
+                self.vehicle._master.target_system,
+                self.vehicle._master.target_component,
+                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
+                0, 0, 0, 0, 0, 0, 0, 0  # all params set to 0
+            )
+            
+            print("Geofence made visible.")
     
         except Exception as e:
             print(f"Error loading geofence: {str(e)}")
@@ -355,6 +360,20 @@ class DroneController:
         self.vehicle.reboot()
         print("Reboot command sent. Waiting for reboot...")
         time.sleep(30)  # Wait for reboot
+        self.reconnect()
+        
+        # Ensure GPS fix
+        while vehicle.gps_0.fix_type < 2:
+            print("Waiting for GPS fix...")
+            time.sleep(1)
+        print("GPS fix acquired")
+        
+        # Ensure EKF is healthy
+        while not vehicle.ekf_ok:
+            print("Waiting for EKF to be ready...")
+            time.sleep(1)
+        print("EKF is ready")
+
         print("Ardupilot system has been rebooted")
     
     def close(self):

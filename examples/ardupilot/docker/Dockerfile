@@ -231,7 +231,7 @@ RUN sudo apt-get install -y python3.6-distutils
 RUN sudo python3.6 -m pip install tarjan
 
 # For script running of Ardupilot
-RUN pip3 install dronekit
+RUN pip3 install pymavlink dronekit
 
 # Put all radler build setup in ~/radler
 #RUN git clone https://github.com/SRI-CSL/radler.git
@@ -239,13 +239,45 @@ RUN git clone https://github.com/MMetelko/radler.git
 RUN mv radler /home/${USER_NAME}
 RUN cd $RADLERDIR && \ 
     git submodule update --init --recursive && \
-    git checkout thermo-example
+    git checkout thermo-dev-ardu-descert
 
 RUN sudo mv /opt/ros/foxy/share/mavros/launch /opt/ros/foxy/share/mavros/launch.bak
 RUN sudo cp -r ${RADLERDIR}/examples/ardupilot/launch /opt/ros/foxy/share/mavros
 
 # Remove ModemManger due to warning during vehicle sim run
 RUN sudo apt-get remove -y modemmanager
+
+# Additional tools for DesCert demo
+RUN echo "Installing Mono"
+RUN sudo apt install -y gnupg ca-certificates
+RUN yes | sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF
+RUN echo "deb https://download.mono-project.com/repo/ubuntu stable-bionic main" | sudo tee /etc/apt/sources.list.d/mono-official-stable.list
+RUN sudo apt update
+RUN sudo apt install -y mono-devel
+
+RUN mkdir -p ~/MissionPlanner
+RUN /bin/bash -c "cd ~/MissionPlanner && \
+    wget https://firmware.ardupilot.org/Tools/MissionPlanner/MissionPlanner-latest.zip && \
+    unzip MissionPlanner-latest.zip"
+
+RUN /bin/bash -c 'echo "Installing Vicon (aka Vision Positioning) for GPS/Non-GPS Transitions on EKF Navigation"'
+RUN cp /app/radler/examples/ardupilot/sitl_config/ViconDataStreamSDK_1.7.1_96542h.zip ~/ViconDataStreamSDK_1.7.1_96542h.zip
+RUN /bin/bash -c "cd ~/ && \
+    unzip ~/ViconDataStreamSDK_1.7.1_96542h.zip && \
+    git clone https://github.com/tridge/pyvicon.git && \
+    cp ~/ViconDataStreamSDK_1.7.1_96542h/Linux64-boost-1.55.0/20170125_96542h.x64/*.cpp ~/pyvicon/pyvicon/ && \
+    cp ~/ViconDataStreamSDK_1.7.1_96542h/Linux64-boost-1.55.0/20170125_96542h.x64/*.h ~/pyvicon/pyvicon/ && \
+    sudo cp ~/ViconDataStreamSDK_1.7.1_96542h/Linux64-boost-1.55.0/20170125_96542h.x64/lib* /usr/lib/"
+RUN /bin/bash -c "cd ~/pyvicon && \
+    sudo python3 setup.py install"
+
+    RUN sudo apt-get install -y libgtk-3-dev
+    RUN sudo -H pip3 install scikit-build --verbose
+    RUN sudo -H pip3 install opencv-python --verbose
+    RUN python3 -m pip install --verbose --user pathlib2 wxpython
+    RUN /bin/bash -c 'echo "Updating startup script"'
+    RUN /bin/bash -c '(echo ; echo "# Setup for VICON" ; echo "set moddebug 3"; echo "module load vicon"; echo "vicon start"; echo "rc 8 1000" ) >> /ardupilot/Tools/vagrant/mavinit.scr'
+    RUN /bin/bash -c 'echo "Completed DesCert Special Build"'
 
 # Setup NoVNC
 #Install git, supervisor, VNC, & X11 packages
@@ -268,12 +300,13 @@ RUN sudo apt-get install -y \
 
 RUN mkdir -p /home/${USER_NAME}/.fluxbox
 RUN sudo mkdir -p /usr/local/share/fluxbox/styles
-RUN mkdir /app-novnc
+RUN sudo mkdir -p /app-novnc
 
-COPY fluxbox/config/* /home/${USER_NAME}/.fluxbox/
-COPY fluxbox/styles/ /usr/local/share/fluxbox/styles/
-COPY app /app-novnc/
+COPY fluxbox/config /home/${USER_NAME}/.fluxbox
+COPY fluxbox/styles /usr/local/share/fluxbox/styles
+COPY app /app-novnc
 RUN sudo chown -R ${USER_NAME}:${USER_NAME} /app-novnc
+RUN sudo chmod +x /app-novnc/scripts/run_with_dronekit.py
 
 # Setup demo environment variables
 ENV DISPLAY=:0.0 \
@@ -284,7 +317,12 @@ ENV DISPLAY=:0.0 \
     LC_ALL=C.UTF-8 \
     RUN_FLUXBOX=yes
 
-EXPOSE 8090
+
+# Setup entrypoint file
+COPY ardupilot_entrypoint.sh /ardupilot_entrypoint.sh
+RUN sudo chown ${USER_NAME}:${USER_NAME} /ardupilot_entrypoint.sh
+
+EXPOSE 8090 8501 14550
 
 # Build the ardupilot SITL simulator
 # Finish pulling the ardupilot repository
@@ -303,23 +341,18 @@ RUN /bin/bash -c "source /home/${USER_NAME}/.ardupilot_env && \
     cd ${ROS2_WS} && \
     colcon build --cmake-args -DSECURITY=ON --no-warn-unused-cli --symlink-install && \
     source ${ROS2_WS}/install/local_setup.bash && \
-    #sros2
     # From vagrant/sros_keystore.bash
     cd /home/${USER_NAME} && \
     ros2 security create_keystore sros2_keys && \
     ros2 security create_key sros2_keys /afs/mavros && \
     ros2 security create_key sros2_keys /afs/afs_gateway && \
-    ros2 security create_key sros2_keys /afs/afs_battery && \
-    ros2 security create_key sros2_keys /afs/afs_esp && \
-    ros2 security create_key sros2_keys /afs/afs_log"
+    ros2 security create_key sros2_keys /afs/afs_function"
 
 # From vagrant sros_env.bash
 RUN mkdir -p ${ROS2_WS}/install/afs/bin
 RUN cd ${ROS2_WS}/install/afs/bin && \
     ln -sf ../../../build/afs/afs_gateway . && \
-    ln -sf ../../../build/afs/afs_battery . && \
-    ln -sf ../../../build/afs/afs_esp . && \
-    ln -sf ../../../build/afs/afs_log .
+    ln -sf ../../../build/afs/afs_function . 
     
 # Cleanup
 RUN sudo apt-get autoremove -y
