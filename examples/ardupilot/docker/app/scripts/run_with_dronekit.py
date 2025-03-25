@@ -195,41 +195,59 @@ class DroneController:
             self.vehicle.wait_ready('parameters', timeout=300)
    
     # Upload Mission Waypoints
+    def upload_waypoint(self, i, wp, max_retries=3):
+        for attempt in range(max_retries):
+            self.vehicle._master.mav.mission_item_int_send(
+                self.target_system, mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                i, *wp[1:])
+            ack = self.vehicle._master.recv_match(type='MISSION_ACK', blocking=True, timeout=15)
+            if ack and ack.type == mavutil.mavlink.MAV_MISSION_ACCEPTED:
+                return True
+        return False
+        
     def load_mission_waypoints(self):
         try:
-            # Clear any existing missions
-            cmds = self.vehicle.commands
-            cmds.download()
-            cmds.wait_ready()
-            
-            cmds.clear()
-            cmds.upload()
-            
             mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
+
+            cmds = self.vehicle.commands
+            cmds.clear()
+            
+            # Read waypoints from file
             with open(mission_waypoint_file_path, 'r') as f:
                 next(f)  # Skip header row
                 for line in f:
                     parts = line.strip().split('\t')
                     if len(parts) == 12:
-                        seq, currentwp, frame, command, param1, param2, param3, param4, x, y, z, autocontinue = parts
-                        cmd = mavutil.mavlink.MAVLink_mission_item_int_message(
+                        linearray=line.split('\t')
+                        seq=int(linearray[0])
+                        currentwp=int(linearray[1])
+                        frame=int(linearray[2])
+                        command=int(linearray[3])
+                        param1=float(linearray[4])
+                        param2=float(linearray[5])
+                        param3=float(linearray[6])
+                        param4=float(linearray[7])
+                        x=float(linearray[8])
+                        y=float(linearray[9])
+                        z=float(linearray[10])
+                        autocontinue=int(linearray[11].strip())
+                        cmd = Command( 
                                     self.target_system, 
                                     mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                                    int(seq), int(frame), int(command), 
-                                    int(currentwp), int(autocontinue),
-                                    float(param1), float(param2), float(param3), float(param4),
-                                    int(float(x) * 1e7), int(float(y) * 1e7), float(z))
+                                    seq, frame, command, 
+                                    currentwp, autocontinue,
+                                    param1, param2, param3, param4,
+                                    x, y, z)
                         cmds.add(cmd)
-        
+                        
             cmds.upload()
-            cmds.wait_ready()
-            print(f"Mission uploaded: {cmds.count} waypoints")            
+            print(f"Mission uploaded: {cmds.count} waypoints")      
         except Exception as e:
-            print(f"Error loading mission: {str(e)}")
-    
+            print(f"Unexpected mission error: {str(e)}")
+  
     # Setup Geofence
     def load_geofence(self):
-        try:
+        try:            
             # First setup the desired parameters
             fence_params = {
                 'FENCE_ACTION': 1,
@@ -239,51 +257,56 @@ class DroneController:
                 'FENCE_TYPE': 7
             }
             
-            for param, value in fence_params.items():
-                self.vehicle.parameters[param] = value
-                print(f"{param}: {self.vehicle.parameters[param]}")
-            
-            # Load fence.txt file
-            fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
-            with open(fence_file_path, 'r') as f:
-                points = [line.strip().split('\t') for line in f if line.strip()]
-            
-           # Set fence points
-            for i, point in enumerate(points):
-                lat, lon = map(float, point)
-                msg = self.vehicle.message_factory.fence_point_encode(
-                    self.target_system,
-                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                    i,
-                    len(points),
-                    lat,
-                    lon
-                )
-                self.vehicle.send_mavlink(msg)
-                self.vehicle.flush()
-                time.sleep(0.05)  # slight delay to ensure message delivery
-
-            print(f"Fence uploaded: {len(points)} points")
-            self.vehicle.wait_ready('parameters', timeout=300)
-
-            # Verify fence points
-            if self.vehicle.parameters['FENCE_TOTAL'] == len(points):
-                print("Geofence successfully uploaded and verified.")
+            # First check if fence has already been loaded
+            fence_total = self.vehicle.parameters['FENCE_TOTAL']
+            if (fence_total > 0) and (fence_params['FENCE_TOTAL'] == fence_total):
+                print("The geofence is already loaded.")
             else:
-                print("Geofence upload may have failed. Please verify.")
+                for param, value in fence_params.items():
+                    self.vehicle.parameters[param] = value
+                    print(f"{param}: {self.vehicle.parameters[param]}")
                 
+                # Load fence.txt file
+                fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
+                with open(fence_file_path, 'r') as f:
+                    points = [line.strip().split('\t') for line in f if line.strip()]
+                
+                # Set fence points
+                for i, point in enumerate(points):
+                    lat, lon = map(float, point)
+                    msg = self.vehicle.message_factory.fence_point_encode(
+                        target_system=self.target_system,
+                        target_component=mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
+                        idx=i,
+                        count=len(points),
+                        lat=lat,
+                        lng=lon
+                    )
+                    self.vehicle.send_mavlink(msg)
+                    self.vehicle.flush()
+                    time.sleep(0.05)  # slight delay to ensure message delivery
+
+                print(f"Fence uploaded: {len(points)} points")
+                self.vehicle.wait_ready('parameters', timeout=300)
+
+                # Verify fence points
+                if self.vehicle.parameters['FENCE_TOTAL'] == len(points):
+                    print("Geofence successfully uploaded and verified.")
+                else:
+                    print("Geofence upload may have failed. Please verify.")
+                    
             # Show the fence
             self.vehicle.parameters['FENCE_ENABLE'] = 1
             self.vehicle.flush()
             self.vehicle.wait_ready('parameters', timeout=300)
             
             # Send `fence list` command to MAVProxy
-            self.vehicle._master.mav.command_long_send(
-                self.vehicle._master.target_system,
-                self.vehicle._master.target_component,
-                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
-                0, 0, 0, 0, 0, 0, 0, 0  # all params set to 0
-            )
+            # self.vehicle._master.mav.command_long_send(
+            #     self.vehicle._master.target_system,
+            #     self.vehicle._master.target_component,
+            #     mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
+            #     1, 0, 0, 0, 0, 0, 0, 0  # all params set to 0
+            # )
             
             print("Geofence made visible.")
     
@@ -336,9 +359,31 @@ class DroneController:
        
     # Reset battery
     def reset_simulation(self):
+        # Make sure current mission waypoint is index 0
+        msg = self.vehicle.message_factory.mission_set_current_encode(
+                self.target_system, 
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
+                0,  # seq (the sequence number of the mission item)
+        )
+        self.vehicle.send_mavlink(msg)
+        self.vehicle.flush()  
+            
         # Make sure flight mode is reset
         if self.vehicle.mode == 'AUTO':
             self.emergency_reset()
+        elif self.vehicle.mode == 'LAND':
+            self.vehicle.mode = VehicleMode("GUIDED")
+            while not self.vehicle.mode.name == "GUIDED":
+                print("Waiting for mode change to GUIDED...")
+                time.sleep(1)
+            print("Mode changed to GUIDED.")
+            
+            self.wait_for_disarm()
+                
+            self.vehicle.mode = VehicleMode("STABILIZE")
+            while self.vehicle.mode != 'STABILIZE':
+                print(" Waiting for stabilize mode...")
+                time.sleep(1)            
         else:
             # After a flight (successful mission flight or guided/landed flight), 
             # the RTL mode would have been commanded and will end up in "DISARMED"
@@ -356,6 +401,12 @@ class DroneController:
         print("System Battery Power is reset")
         
     def reboot_autopilot(self):
+        # Disable the geofence
+        self.vehicle.parameters['FENCE_ENABLE'] = 0
+        self.vehicle.flush()
+        self.vehicle.wait_ready('parameters', timeout=300)
+        print("Geofence disabled.")
+        
         print("Rebooting autopilot...")
         self.vehicle.reboot()
         print("Reboot command sent. Waiting for reboot...")
