@@ -363,13 +363,13 @@ class DroneController:
         self.reconnect()
         
         # Ensure GPS fix
-        while vehicle.gps_0.fix_type < 2:
+        while self.vehicle.gps_0.fix_type < 2:
             print("Waiting for GPS fix...")
             time.sleep(1)
         print("GPS fix acquired")
         
         # Ensure EKF is healthy
-        while not vehicle.ekf_ok:
+        while not self.vehicle.ekf_ok:
             print("Waiting for EKF to be ready...")
             time.sleep(1)
         print("EKF is ready")
@@ -417,7 +417,7 @@ def main():
     movement_group.add_argument('--hortMovement', type=int, choices=range(-100, 101), metavar='[-100 to 100]',
                         help="Relative Horizontal movement")
     
-    run_sim_parser.add_argument('--altitude', type=int, choices=range(10, 200), metavar='[10 to 200]',
+    run_sim_parser.add_argument('--altitude', type=int, choices=range(30, 201), metavar='[30 to 200]',
                         help="Altitude in meters (required)", required=True)
     
     # Parse the arguments
