@@ -268,16 +268,11 @@ class DroneController:
             print("Sent mavproxy fence list command")
   
             # Wait for the response, which might include info about the fence loaded
-            prompt_pattern = '([A-Z]+>)'
-            child.expect(prompt_pattern, timeout=60)
-            print(f"MAVProxy '{child.match.group(1)}' prompt received.")
-
-            # You can print the response or handle it as needed.
             child.expect('MAV>', timeout=60)
-            print(child.before.decode('utf-8'))
+            print(f"MAVProxy command completed.")
 
             # Close the MAVProxy process
-            time.sleep(1)
+            #time.sleep(1)
             child.close()
             print("Closed mavproxy communication link.")
         except Exception as e:
