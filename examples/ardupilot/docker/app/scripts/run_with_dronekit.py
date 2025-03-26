@@ -3,12 +3,12 @@
 import argparse
 from dronekit import connect, VehicleMode, LocationGlobalRelative, Command
 import time
-from math import radians, sin, cos
+from math import radians, cos
 from pymavlink import mavutil
-import csv
 import os
 import signal
 import sys
+import pexpect
 
 controller = None
 
@@ -73,7 +73,10 @@ class DroneController:
         while True:
             print(" Altitude: ", self.vehicle.location.global_relative_frame.alt)
             if self.vehicle.location.global_relative_frame.alt >= aTargetAltitude * 0.95:
-                print("Reached target altitude")
+                print("Reached target altitude.")
+                break
+            elif self.vehicle.mode == 'RTL':
+                print("A fail-safe mechanism changed the vehicle mode to RTL.")
                 break
             time.sleep(1)
 
@@ -241,56 +244,104 @@ class DroneController:
                         cmds.add(cmd)
                         
             cmds.upload()
+            # Note: The following warning appears on the console, but it does show "Flight plan received"
+            #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
+            #    AP: got MISSION_ITEM; GCS should send MISSION_ITEM_INT
+            #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
+            #    AP: Flight plan received
             print(f"Mission uploaded: {cmds.count} waypoints")      
         except Exception as e:
             print(f"Unexpected mission error: {str(e)}")
+
+    def display_fence(self):
+        try:
+            # Now interact with MAVProxy using pexpect
+            child = pexpect.spawn('mavproxy.py --master=udp:127.0.0.1:14550', timeout=120)
+            print("Spawned mavproxy...")
+
+            # Expect MAVProxy to start and present its command prompt
+            child.expect('MAV>', timeout=60)
+            print("Ready to send mavproxy command...")
+
+            # Send the 'fence list' command to MAVProxy
+            child.sendline('fence list')
+            print("Sent mavproxy fence list command")
+  
+            # Wait for the response, which might include info about the fence loaded
+            prompt_pattern = '([A-Z]+>)'
+            child.expect(prompt_pattern, timeout=60)
+            print(f"MAVProxy '{child.match.group(1)}' prompt received.")
+
+            # You can print the response or handle it as needed.
+            child.expect('MAV>', timeout=60)
+            print(child.before.decode('utf-8'))
+
+            # Close the MAVProxy process
+            time.sleep(1)
+            child.close()
+            print("Closed mavproxy communication link.")
+        except Exception as e:
+            print(f"Unexpected mavproxy communication error: {str(e)}")
   
     # Setup Geofence
     def load_geofence(self):
         try:            
+            # Load fence.txt file
+            fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
+            with open(fence_file_path, 'r') as f:
+                points = [line.strip().split('\t') for line in f if line.strip()]
+
             # First setup the desired parameters
             fence_params = {
                 'FENCE_ACTION': 1,
                 'FENCE_ALT_MAX': 150.0,
                 'FENCE_RADIUS': 500.0,
-                'FENCE_TOTAL': 8,
+                'FENCE_TOTAL': len(points) - 1,
                 'FENCE_TYPE': 7
             }
             
             # First check if fence has already been loaded
             fence_total = self.vehicle.parameters['FENCE_TOTAL']
+            print(f"Current fence_total is {fence_total}.")
             if (fence_total > 0) and (fence_params['FENCE_TOTAL'] == fence_total):
                 print("The geofence is already loaded.")
             else:
                 for param, value in fence_params.items():
                     self.vehicle.parameters[param] = value
                     print(f"{param}: {self.vehicle.parameters[param]}")
-                
-                # Load fence.txt file
-                fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
-                with open(fence_file_path, 'r') as f:
-                    points = [line.strip().split('\t') for line in f if line.strip()]
-                
-                # Set fence points
-                for i, point in enumerate(points):
+                                
+                # Set fence points, do not load the last point
+                for i, point in enumerate(points[:-1]):
                     lat, lon = map(float, point)
                     msg = self.vehicle.message_factory.fence_point_encode(
                         target_system=self.target_system,
                         target_component=mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
                         idx=i,
-                        count=len(points),
+                        count=len(points) - 1,
                         lat=lat,
                         lng=lon
                     )
                     self.vehicle.send_mavlink(msg)
                     self.vehicle.flush()
-                    time.sleep(0.05)  # slight delay to ensure message delivery
-
-                print(f"Fence uploaded: {len(points)} points")
+                    # Note: this number was determine on a local system by trial and error, 
+                    # it may need to be increased in the server situation
+                    # It does indicate the following possible messages on the console, 
+                    # but resolves with "fence OK" and "pre-arm good"
+                    #    AP: AC_Fence: invalid polygon vertex count 1
+                    #    pre-arm fail
+                    #    AP: AC_Fence: invalid polygon vertex count 2
+                    #    AP: PreArm: Polygon fence(s) invalid
+                    #    fence breach
+                    #    fence OK
+                    #    pre-arm good
+                    time.sleep(0.3)  # slight delay to ensure message delivery
+                    
+                uploaded_fence_pts_total = self.vehicle.parameters['FENCE_TOTAL']
+                print(f"Fence uploaded: {uploaded_fence_pts_total} points")
                 self.vehicle.wait_ready('parameters', timeout=300)
 
                 # Verify fence points
-                if self.vehicle.parameters['FENCE_TOTAL'] == len(points):
+                if self.vehicle.parameters['FENCE_TOTAL'] == (len(points) - 1):
                     print("Geofence successfully uploaded and verified.")
                 else:
                     print("Geofence upload may have failed. Please verify.")
@@ -300,14 +351,7 @@ class DroneController:
             self.vehicle.flush()
             self.vehicle.wait_ready('parameters', timeout=300)
             
-            # Send `fence list` command to MAVProxy
-            # self.vehicle._master.mav.command_long_send(
-            #     self.vehicle._master.target_system,
-            #     self.vehicle._master.target_component,
-            #     mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
-            #     1, 0, 0, 0, 0, 0, 0, 0  # all params set to 0
-            # )
-            
+            #self.display_fence()
             print("Geofence made visible.")
     
         except Exception as e:
