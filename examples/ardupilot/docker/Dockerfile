@@ -239,7 +239,7 @@ RUN git clone https://github.com/MMetelko/radler.git
 RUN mv radler /home/${USER_NAME}
 RUN cd $RADLERDIR && \ 
     git submodule update --init --recursive && \
-    git checkout thermo-dev-ardu-descert
+    git checkout mm-ardupilot-descert
 
 RUN sudo mv /opt/ros/foxy/share/mavros/launch /opt/ros/foxy/share/mavros/launch.bak
 RUN sudo cp -r ${RADLERDIR}/examples/ardupilot/launch /opt/ros/foxy/share/mavros
