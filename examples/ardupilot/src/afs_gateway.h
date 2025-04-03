@@ -60,7 +60,7 @@ class AFS_Gateway
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr mavros_diagnostics_subscriber;
     diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr diagnostics_status_mailbox;
     void mavros_diagnostics_callback(const diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr das);
-    std::string formatTimestamp(const builtin_interfaces::msg::Time& stamp)
+    std::string formatTimestamp(const builtin_interfaces::msg::Time& stamp);
 
     rclcpp::Time previous_diagnostics_status_time;
     int previous_diagnostics_heartbeat_value;

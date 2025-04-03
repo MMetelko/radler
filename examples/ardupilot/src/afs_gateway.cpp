@@ -280,7 +280,8 @@ void AFS_Gateway::mavros_diagnostics_callback(const diagnostic_msgs::msg::Diagno
 	this->diagnostics_status_mailbox = das;
 }
 
-std::string formatTimestamp(const builtin_interfaces::msg::Time& stamp) {
+std::string AFS_Function::formatTimestamp(const builtin_interfaces::msg::Time& stamp) 
+{
     auto time_point = std::chrono::system_clock::time_point(
         std::chrono::seconds(stamp.sec) +
         std::chrono::nanoseconds(stamp.nanosec)

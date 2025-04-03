@@ -25,7 +25,7 @@ class AFS_Function
         void step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_t* o, radl_out_flags_t* o_f);
 
     private:
-    std::string formatTimestamp(const builtin_interfaces::msg::Time& stamp)
+    std::string formatTimestamp(const builtin_interfaces::msg::Time& stamp);
     std::shared_ptr<rclcpp::Node> node;
 
     double battery_remaining_percentage;

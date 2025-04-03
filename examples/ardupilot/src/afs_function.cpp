@@ -199,7 +199,8 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 	radl_turn_off(radl_TIMEOUT, &o_f->gcs_message);
 }
 
-std::string formatTimestamp(const builtin_interfaces::msg::Time& stamp) {
+std::string AFS_Function::formatTimestamp(const builtin_interfaces::msg::Time& stamp) 
+{
     auto time_point = std::chrono::system_clock::time_point(
         std::chrono::seconds(stamp.sec) +
         std::chrono::nanoseconds(stamp.nanosec)
