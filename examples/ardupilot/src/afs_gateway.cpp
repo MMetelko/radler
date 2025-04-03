@@ -32,7 +32,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			o->battery_status->remaining_percentage = (this->battery_status_mailbox->percentage * 100.0); // [0.0,1.0] to [0.0, 100.0]
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 					<< "battery remaining: " << o->battery_status->remaining_percentage << "% "
-					<< "with status message at (" << this->battery_status_mailbox->header.stamp.sec << "s, " << this->battery_status_mailbox->header.stamp.nanosec << "ns) "
+					<< "with status message at (" << formatTimestamp(this->battery_status_mailbox->header.stamp) << ") "
 					<< endl;
 			this->battery_status_mailbox = nullptr;
 			radl_turn_off(radl_STALE, &o_f->battery_status);
@@ -56,7 +56,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					<< "geofence breach (status: 0/1 inside fence or outside, count: # breaches,  breach_type: 0/1/2/3 for none/min_alt/max_alt/bundary, breach time (ms) since boot of last breach): "
 					<< "==> (" << (int) o->geofence_status->breach_status << ", " << (int) o->geofence_status->breach_count << ", "
 					<< (int) o->geofence_status->breach_type << ", " << (int) o->geofence_status->breach_time << ") "
-					<< "with status message at (" << this->geofence_status_mailbox->header.stamp.sec << "s, " << this->geofence_status_mailbox->header.stamp.nanosec << "ns) "
+					<< "with status message at (" << formatTimestamp(this->geofence_status_mailbox->header.stamp) << ") "
 					<< endl;
 			this->geofence_status_mailbox = nullptr;
 			radl_turn_off(radl_STALE, &o_f->geofence_status);
@@ -71,12 +71,12 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			if ((o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_GPS)) || (o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_FIX))){
 				cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 						<< "GPS FIX LOSS with visible satellites: " << (int) o->gps_status->satellites_visible  << " "
-						<< "with status message at (" << this->gps_status_mailbox->header.stamp.sec << "s, " << this->gps_status_mailbox->header.stamp.nanosec << "ns) "
+						<< "with status message at (" << formatTimestamp(this->gps_status_mailbox->header.stamp) << ") "
 						<< endl;
 			} else {
 				cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 						<< "GPS fine/normal with visible satellites: " << (int) o->gps_status->satellites_visible  << " "
-						<< "with status message at (" << this->gps_status_mailbox->header.stamp.sec << "s, " << this->gps_status_mailbox->header.stamp.nanosec << "ns) "
+						<< "with status message at (" << formatTimestamp(this->gps_status_mailbox->header.stamp) << ") "
 						<< endl;
 			}
 			this->gps_status_mailbox = nullptr;
@@ -92,7 +92,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					<< "(connected,armed,guided,manual_input,system_status): " << "(" << (int)this->autopilotstate_status_mailbox->connected
 					<< "," << (int)this->autopilotstate_status_mailbox->armed << "," << (int)this->autopilotstate_status_mailbox->guided
 					<< "," << (int)this->autopilotstate_status_mailbox->manual_input << "," << (int)this->autopilotstate_status_mailbox->system_status << ") "
-					<< "with status message at (" << this->autopilotstate_status_mailbox->header.stamp.sec << "s, " << this->autopilotstate_status_mailbox->header.stamp.nanosec << "ns) "
+					<< "with status message at (" << formatTimestamp(this->autopilotstate_status_mailbox->header.stamp) << ") "
 					<< endl;
 		} else {
 			cout << "Autopilot status mailbox is null" << endl;
@@ -119,7 +119,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					<< (double) this->globalposition_status_mailbox->latitude << ","
 					<< (double) this->globalposition_status_mailbox->longitude << ","
 					<< (double) this->globalposition_status_mailbox->altitude << ") "
-					<< "with status message at (" << this->globalposition_status_mailbox->header.stamp.sec << "s, " << this->globalposition_status_mailbox->header.stamp.nanosec << "ns) "
+					<< "with status message at (" << formatTimestamp(this->globalposition_status_mailbox->header.stamp) << ") "
 					<< endl;
 		this->globalposition_status_mailbox = nullptr;
 		} else {
