@@ -6,10 +6,10 @@ AFS_Gateway::AFS_Gateway()
 
 	mavros_battery_subscriber = node->create_subscription<sensor_msgs::msg::BatteryState>("/mavros/battery", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_battery_state_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture battery message updates at 4Hz
 	mavlink_from_subscriber = node->create_subscription<mavros_msgs::msg::Mavlink>("/mavlink/from", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavlink_fence_status_callback, this, std::placeholders::_1)); // queuesize 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
-	mavros_gpsraw_subscriber = node->create_subscription<mavros_msgs::msg::GPSRAW>("/mavros/gpsstatus/gps1/raw", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_gps_status_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture gps status message updates at 4Hz
+	mavros_gpsraw_subscriber = node->create_subscription<mavros_msgs::msg::GPSRAW>("/mavros/mavros/gps1/raw", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_gps_status_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture gps status message updates at 4Hz
 	flight_controls_mode = node->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
 	mavros_autopilotstate_subscriber = node->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_autopilotstate_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros state message updates at 1Hz
-	mavros_missionwaypoints_subscriber = node->create_subscription<mavros_msgs::msg::WaypointList>("/mavros/mission/waypoints", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_missionwaypoints_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros mission waypoint message updates atvery slow < 0.5 Hz
+	mavros_missionwaypoints_subscriber = node->create_subscription<mavros_msgs::msg::WaypointList>("/mavros/mavros/waypoints", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_missionwaypoints_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros mission waypoint message updates atvery slow < 0.5 Hz
 	mavros_globalposition_subscriber = node->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_globalposition_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture global position from EKF with GPS Fix message updates at 4Hz
 	mavros_diagnostics_subscriber = node->create_subscription<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_diagnostics_callback, this, std::placeholders::_1)); // queue size 10 is good enough to capture FCS Diagnostics message updates at < 1Hz
 	previous_flight_controls_cmd_id = 0;
@@ -42,16 +42,11 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 		radl_turn_off(radl_TIMEOUT, &o_f->battery_status);
 
 		if (this->geofence_status_mailbox) {
-			//Copying the payload from mavros_msgs::Mavlink to mavlink_message_t and filling in the geofence_status appropriately
-			if (!this->geofence_status_mailbox->payload64.empty()) {
-				memcpy(mmsg.payload64, &this->geofence_status_mailbox->payload64[0], 
-					this->geofence_status_mailbox->payload64.size() * sizeof(uint64_t));
-			}
-			//std::copy(this->geofence_status_mailbox->payload64.begin(), this->geofence_status_mailbox->payload64.end(), mmsg.payload64);
-			o->geofence_status->breach_status = mavlink_msg_fence_status_get_breach_status(&mmsg);
-			o->geofence_status->breach_count = mavlink_msg_fence_status_get_breach_count(&mmsg);
-			o->geofence_status->breach_type = mavlink_msg_fence_status_get_breach_type(&mmsg);
-			o->geofence_status->breach_time = mavlink_msg_fence_status_get_breach_time(&mmsg);
+			o->geofence_status->breach_status = this->geofence_status_mailbox.breach_status;
+			o->geofence_status->breach_count = this->geofence_status_mailbox.breach_count;
+			o->geofence_status->breach_type = this->geofence_status_mailbox.breach_type;
+			o->geofence_status->breach_time = this->geofence_status_mailbox.last_breach_time;
+
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 					<< "geofence breach (status: 0/1 inside fence or outside, count: # breaches,  breach_type: 0/1/2/3 for none/min_alt/max_alt/bundary, breach time (ms) since boot of last breach): "
 					<< "==> (" << (int) o->geofence_status->breach_status << ", " << (int) o->geofence_status->breach_count << ", "
@@ -254,9 +249,22 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 }
 
 void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs){
-	if (fs->msgid == 162) { //FENCE_STATUS with msgid #162
-		this->geofence_status_mailbox = fs;
-	} // else skip processing the mavlink message
+    mavlink_message_t mavlink_msg;
+    mavlink_status_t status;
+
+    for (const auto& byte : fs->payload64)
+    {
+        if (mavlink_parse_char(MAVLINK_COMM_0, byte, &mavlink_msg, &status))
+        {
+            if (mavlink_msg.msgid == 162)  // FENCE_STATUS
+            {
+                mavlink_fence_status_t fence_status;
+                mavlink_msg_fence_status_decode(&mavlink_msg, &fence_status);
+                this->geofence_status_mailbox = fence_status;
+                break;
+            }
+        }
+    }
 }
 
 void AFS_Gateway::mavros_gps_status_callback(const mavros_msgs::msg::GPSRAW::ConstSharedPtr gs)
