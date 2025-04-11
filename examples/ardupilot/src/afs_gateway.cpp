@@ -15,6 +15,7 @@ AFS_Gateway::AFS_Gateway()
 	previous_flight_controls_cmd_id = 0;
 	previous_diagnostics_heartbeat_value = -1;
 	current_heartbeat_loss_duration = 0.0;
+	geofence_status_available = false;
 }
 
 void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_t* o, radl_out_flags_t* o_f)
@@ -41,19 +42,19 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 		}
 		radl_turn_off(radl_TIMEOUT, &o_f->battery_status);
 
-		if (this->geofence_status_mailbox) {
+		if (this->geofence_status_available) {
 			o->geofence_status->breach_status = this->geofence_status_mailbox.breach_status;
 			o->geofence_status->breach_count = this->geofence_status_mailbox.breach_count;
 			o->geofence_status->breach_type = this->geofence_status_mailbox.breach_type;
-			o->geofence_status->breach_time = this->geofence_status_mailbox.last_breach_time;
+			o->geofence_status->breach_time = this->geofence_status_mailbox.breach_time;
 
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 					<< "geofence breach (status: 0/1 inside fence or outside, count: # breaches,  breach_type: 0/1/2/3 for none/min_alt/max_alt/bundary, breach time (ms) since boot of last breach): "
 					<< "==> (" << (int) o->geofence_status->breach_status << ", " << (int) o->geofence_status->breach_count << ", "
 					<< (int) o->geofence_status->breach_type << ", " << (int) o->geofence_status->breach_time << ") "
-					<< "with status message at (" << formatTimestamp(this->geofence_status_mailbox->header.stamp) << ") "
+					<< "with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
 					<< endl;
-			this->geofence_status_mailbox = nullptr;
+			this->geofence_status_available = false;
 			radl_turn_off(radl_STALE, &o_f->geofence_status);
 		} else {
 			radl_turn_on(radl_STALE, &o_f->geofence_status);
@@ -256,11 +257,11 @@ void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink:
     {
         if (mavlink_parse_char(MAVLINK_COMM_0, byte, &mavlink_msg, &status))
         {
-            if (mavlink_msg.msgid == 162)  // FENCE_STATUS
+            if (mavlink_msg.msgid == MAVLINK_MSG_ID_FENCE_STATUS)  // FENCE_STATUS
             {
-                mavlink_fence_status_t fence_status;
-                mavlink_msg_fence_status_decode(&mavlink_msg, &fence_status);
-                this->geofence_status_mailbox = fence_status;
+                mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
+                this->geofence_status_available = true;
+				this->geofence_status_timestamp = this->node->now();
                 break;
             }
         }

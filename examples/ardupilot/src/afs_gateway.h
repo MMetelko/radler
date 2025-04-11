@@ -33,11 +33,12 @@ class AFS_Gateway
     std::shared_ptr<rclcpp::Node> node;
 
     rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr mavros_battery_subscriber;
-        sensor_msgs::msg::BatteryState::ConstSharedPtr battery_status_mailbox;
-        void mavros_battery_state_callback(const sensor_msgs::msg::BatteryState::ConstSharedPtr bs);
+    sensor_msgs::msg::BatteryState::ConstSharedPtr battery_status_mailbox;
+    void mavros_battery_state_callback(const sensor_msgs::msg::BatteryState::ConstSharedPtr bs);
 
     rclcpp::Subscription<mavros_msgs::msg::Mavlink>::SharedPtr mavlink_from_subscriber;
-    mavros_msgs::msg::Mavlink::ConstSharedPtr geofence_status_mailbox;
+    mavlink_fence_status_t geofence_status_mailbox;
+    rclcpp::Time geofence_status_timestamp;
     void mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs);
 
     rclcpp::Subscription<mavros_msgs::msg::GPSRAW>::SharedPtr mavros_gpsraw_subscriber;
@@ -70,5 +71,7 @@ class AFS_Gateway
     double current_heartbeat_loss_duration;
 
     int previous_flight_controls_cmd_id;
+
+    bool geofence_status_available;
 
 };
