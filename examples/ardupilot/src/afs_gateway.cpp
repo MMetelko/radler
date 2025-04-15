@@ -251,12 +251,15 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 
 void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs){
 
-	cout << "Mavlink msgid = " << fs->msgid << endl;
+	cout << "Mavlink msgid = " << fs->msgid << "; sysid = " << fs->sysid << "; compid = " << fs->compid << endl;
+	cout << "MAVLINK_MSG_ID_FENCE_STATUS = " << MAVLINK_MSG_ID_FENCE_STATUS << endl;
 
-	if (fs->msgid == MAVLINK_MSG_ID_FENCE_STATUS)  // FENCE_STATUS
+	//if (fs->msgid == MAVLINK_MSG_ID_FENCE_STATUS)  // FENCE_STATUS
+	if (fs->msgid == 162)
 	{
 		mavlink_message_t mavlink_msg;
 
+		cout << "Found Fence Status Message..." << endl;
         mavlink_msg.msgid = fs->msgid;
         mavlink_msg.sysid = fs->sysid;
         mavlink_msg.compid = fs->compid;
@@ -267,7 +270,6 @@ void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink:
         mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
 		this->geofence_status_available = true;
 		this->geofence_status_timestamp = this->node->now();
-		cout << "Found Fence Status Message..." << endl;
 	}
 }
 
