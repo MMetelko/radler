@@ -158,15 +158,15 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				}
 				
 				if ((current_diagnostics_heartbeat_value - previous_diagnostics_heartbeat_value) >= ((int)(elapsed_diagnostics_status_duration))){
-					// No Hearbeat Loss
+					// No Heartbeat Loss
 					current_heartbeat_loss_duration = 0.0;
 				} else {
-					// Hearbeat Loss
+					// Heartbeat Loss
 					current_heartbeat_loss_duration += elapsed_diagnostics_status_duration;
 				}
 
 				cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-						<< "Diagnostic Status (name,heartbeat_key,hearbeat_value,prev_hearbeat_value,elapsed(s),loss_duration(s)): " << "("
+						<< "Diagnostic Status (name,heartbeat_key,heartbeat_value,prev_heartbeat_value,elapsed(s),loss_duration(s)): " << "("
 						<< this->diagnostics_status_mailbox->status[2].name << ","
 						<< this->diagnostics_status_mailbox->status[2].values[0].key << ","
 						<< current_diagnostics_heartbeat_value  << "," << previous_diagnostics_heartbeat_value << ","
@@ -253,11 +253,14 @@ void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink:
     mavlink_message_t mavlink_msg;
     mavlink_status_t status;
 
+	cout << "Mavlink msgid = " << fs->msgid << endl;
+
 	if (fs->msgid == MAVLINK_MSG_ID_FENCE_STATUS)  // FENCE_STATUS
 	{
-		mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
+        mavlink_msg_fence_status_decode(&fs->payload64[0], &this->geofence_status_mailbox);
 		this->geofence_status_available = true;
 		this->geofence_status_timestamp = this->node->now();
+		cout << "Found Fence Status Message..."
 	}
 }
 

@@ -40,6 +40,7 @@ class AFS_Gateway
     mavlink_fence_status_t geofence_status_mailbox;
     rclcpp::Time geofence_status_timestamp;
     void mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs);
+    //static constexpr uint32_t MAVLINK_MSG_ID_FENCE_STATUS = 162;
 
     rclcpp::Subscription<mavros_msgs::msg::GPSRAW>::SharedPtr mavros_gpsraw_subscriber;
     mavros_msgs::msg::GPSRAW::ConstSharedPtr gps_status_mailbox;
@@ -73,5 +74,4 @@ class AFS_Gateway
     int previous_flight_controls_cmd_id;
 
     bool geofence_status_available;
-
 };
