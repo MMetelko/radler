@@ -250,14 +250,19 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 }
 
 void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs){
-    mavlink_message_t mavlink_msg;
-    mavlink_status_t status;
 
 	cout << "Mavlink msgid = " << fs->msgid << endl;
 
 	if (fs->msgid == MAVLINK_MSG_ID_FENCE_STATUS)  // FENCE_STATUS
 	{
-        mavlink_msg_fence_status_decode(&fs->payload64[0], &this->geofence_status_mailbox);
+		mavlink_message_t mavlink_msg;
+
+        mavlink_msg.msgid = fs->msgid;
+        mavlink_msg.sysid = fs->sysid;
+        mavlink_msg.compid = fs->compid;
+        memcpy(mavlink_msg.payload64, fs->payload64.data(), sizeof(mavlink_msg.payload64));
+
+        mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
 		this->geofence_status_available = true;
 		this->geofence_status_timestamp = this->node->now();
 		cout << "Found Fence Status Message..." << endl;
