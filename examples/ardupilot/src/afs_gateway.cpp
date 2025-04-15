@@ -260,7 +260,9 @@ void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink:
         mavlink_msg.msgid = fs->msgid;
         mavlink_msg.sysid = fs->sysid;
         mavlink_msg.compid = fs->compid;
-        memcpy(mavlink_msg.payload64, fs->payload64.data(), sizeof(mavlink_msg.payload64));
+		for (size_t i = 0; i < fs->payload64.size() && i < sizeof(mavlink_msg.payload64)/sizeof(mavlink_msg.payload64[0]); ++i) {
+            mavlink_msg.payload64[i] = fs->payload64[i];
+        }
 
         mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
 		this->geofence_status_available = true;
