@@ -5,7 +5,7 @@ AFS_Gateway::AFS_Gateway()
 	node = rclcpp::Node::make_shared("afs_gateway");
 
 	mavros_battery_subscriber = node->create_subscription<sensor_msgs::msg::BatteryState>("/mavros/battery", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_battery_state_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture battery message updates at 4Hz
-	mavlink_from_subscriber = node->create_subscription<mavros_msgs::msg::Mavlink>("/mavlink/from", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavlink_fence_status_callback, this, std::placeholders::_1)); // queuesize 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
+	mavlink_from_subscriber = node->create_subscription<mavros_msgs::msg::Mavlink>("/uas1/mavlink_source", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavlink_fence_status_callback, this, std::placeholders::_1)); // queuesize 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
 	mavros_gpsraw_subscriber = node->create_subscription<mavros_msgs::msg::GPSRAW>("/mavros/mavros/gps1/raw", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_gps_status_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture gps status message updates at 4Hz
 	flight_controls_mode = node->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
 	mavros_autopilotstate_subscriber = node->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_autopilotstate_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros state message updates at 1Hz
