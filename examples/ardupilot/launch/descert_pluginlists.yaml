@@ -16,9 +16,9 @@
 #    - wheel_odometry
 #    plugin_allowlist: []
 #- 'sys_*'
-  mavlink:
-    ros__parameters:
-      from:
-        topic: "/mavlink/from"
-      to:
-        topic: "/mavlink/to"
+# mavlink:
+#   ros__parameters:
+#     from:
+#       topic: "/mavlink/from"
+#     to:
+#       topic: "/mavlink/to"

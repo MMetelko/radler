@@ -253,19 +253,12 @@ void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink:
     mavlink_message_t mavlink_msg;
     mavlink_status_t status;
 
-    for (const auto& byte : fs->payload64)
-    {
-        if (mavlink_parse_char(MAVLINK_COMM_0, byte, &mavlink_msg, &status))
-        {
-            if (mavlink_msg.msgid == MAVLINK_MSG_ID_FENCE_STATUS)  // FENCE_STATUS
-            {
-                mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
-                this->geofence_status_available = true;
-				this->geofence_status_timestamp = this->node->now();
-                break;
-            }
-        }
-    }
+	if (fs->msgid == MAVLINK_MSG_ID_FENCE_STATUS)  // FENCE_STATUS
+	{
+		mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
+		this->geofence_status_available = true;
+		this->geofence_status_timestamp = this->node->now();
+	}
 }
 
 void AFS_Gateway::mavros_gps_status_callback(const mavros_msgs::msg::GPSRAW::ConstSharedPtr gs)
