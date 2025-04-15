@@ -50,8 +50,9 @@ def generate_launch_description():
         package='mavros',
         executable='mavros_node',
         name='mavros',
+        namespace='/uas1/mavros',
         parameters=node_params,
-        arguments=['--ros-args', '--enclave', '/afs/mavros']
+        arguments=['--ros-args', '--enclave', '/uas1/mavros']
     )
 
     ld.add_action(mavros_node)

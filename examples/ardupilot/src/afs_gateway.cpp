@@ -4,14 +4,14 @@ AFS_Gateway::AFS_Gateway()
 {	
 	node = rclcpp::Node::make_shared("afs_gateway");
 
-	mavros_battery_subscriber = node->create_subscription<sensor_msgs::msg::BatteryState>("/mavros/battery", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_battery_state_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture battery message updates at 4Hz
+	mavros_battery_subscriber = node->create_subscription<sensor_msgs::msg::BatteryState>("/uas1/mavros/battery", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_battery_state_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture battery message updates at 4Hz
 	mavlink_from_subscriber = node->create_subscription<mavros_msgs::msg::Mavlink>("/uas1/mavlink_source", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavlink_fence_status_callback, this, std::placeholders::_1)); // queuesize 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
-	mavros_gpsraw_subscriber = node->create_subscription<mavros_msgs::msg::GPSRAW>("/mavros/mavros/gps1/raw", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_gps_status_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture gps status message updates at 4Hz
-	flight_controls_mode = node->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
-	mavros_autopilotstate_subscriber = node->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_autopilotstate_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros state message updates at 1Hz
-	mavros_missionwaypoints_subscriber = node->create_subscription<mavros_msgs::msg::WaypointList>("/mavros/mavros/waypoints", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_missionwaypoints_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros mission waypoint message updates atvery slow < 0.5 Hz
-	mavros_globalposition_subscriber = node->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_globalposition_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture global position from EKF with GPS Fix message updates at 4Hz
-	mavros_diagnostics_subscriber = node->create_subscription<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_diagnostics_callback, this, std::placeholders::_1)); // queue size 10 is good enough to capture FCS Diagnostics message updates at < 1Hz
+	mavros_gpsraw_subscriber = node->create_subscription<mavros_msgs::msg::GPSRAW>("/uas1/mavros/mavros/gps1/raw", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_gps_status_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture gps status message updates at 4Hz
+	flight_controls_mode = node->create_client<mavros_msgs::srv::SetMode>("/uas1/mavros/set_mode");
+	mavros_autopilotstate_subscriber = node->create_subscription<mavros_msgs::msg::State>("/uas1/mavros/state", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_autopilotstate_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros state message updates at 1Hz
+	mavros_missionwaypoints_subscriber = node->create_subscription<mavros_msgs::msg::WaypointList>("/uas1/mavros/mavros/waypoints", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_missionwaypoints_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros mission waypoint message updates atvery slow < 0.5 Hz
+	mavros_globalposition_subscriber = node->create_subscription<sensor_msgs::msg::NavSatFix>("/uas1/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_globalposition_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture global position from EKF with GPS Fix message updates at 4Hz
+	mavros_diagnostics_subscriber = node->create_subscription<diagnostic_msgs::msg::DiagnosticArray>("/uas1/diagnostics", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_diagnostics_callback, this, std::placeholders::_1)); // queue size 10 is good enough to capture FCS Diagnostics message updates at < 1Hz
 	previous_flight_controls_cmd_id = 0;
 	previous_diagnostics_heartbeat_value = -1;
 	current_heartbeat_loss_duration = 0.0;
@@ -249,17 +249,12 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 	this->battery_status_mailbox = bs;
 }
 
-void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs){
-
-	cout << "Mavlink msgid = " << fs->msgid << "; sysid = " << fs->sysid << "; compid = " << fs->compid << endl;
-	cout << "MAVLINK_MSG_ID_FENCE_STATUS = " << MAVLINK_MSG_ID_FENCE_STATUS << endl;
-
-	//if (fs->msgid == MAVLINK_MSG_ID_FENCE_STATUS)  // FENCE_STATUS
-	if (fs->msgid == 162)
+void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs)
+{
+	if (fs->msgid == MAVLINK_MSG_ID_FENCE_STATUS)  // FENCE_STATUS
 	{
 		mavlink_message_t mavlink_msg;
 
-		cout << "Found Fence Status Message..." << endl;
         mavlink_msg.msgid = fs->msgid;
         mavlink_msg.sysid = fs->sysid;
         mavlink_msg.compid = fs->compid;
@@ -278,19 +273,23 @@ void AFS_Gateway::mavros_gps_status_callback(const mavros_msgs::msg::GPSRAW::Con
 	this->gps_status_mailbox = gs;
 }
 
-void AFS_Gateway::mavros_autopilotstate_callback(const mavros_msgs::msg::State::ConstSharedPtr aps){
+void AFS_Gateway::mavros_autopilotstate_callback(const mavros_msgs::msg::State::ConstSharedPtr aps)
+{
 	this->autopilotstate_status_mailbox = aps;
 }
 
-void AFS_Gateway::mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::ConstSharedPtr mws){
+void AFS_Gateway::mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::ConstSharedPtr mws)
+{
 	this->missionwaypoints_status_mailbox = mws;
 }
 
-void AFS_Gateway::mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps){
+void AFS_Gateway::mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps)
+{
 	this->globalposition_status_mailbox = gps;
 }
 
-void AFS_Gateway::mavros_diagnostics_callback(const diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr das){
+void AFS_Gateway::mavros_diagnostics_callback(const diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr das)
+{
 	this->diagnostics_status_mailbox = das;
 }
 
