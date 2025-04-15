@@ -260,7 +260,7 @@ void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink:
         mavlink_msg_fence_status_decode(&fs->payload64[0], &this->geofence_status_mailbox);
 		this->geofence_status_available = true;
 		this->geofence_status_timestamp = this->node->now();
-		cout << "Found Fence Status Message..."
+		cout << "Found Fence Status Message..." << endl;
 	}
 }
 
