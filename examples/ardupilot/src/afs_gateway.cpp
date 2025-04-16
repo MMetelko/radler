@@ -258,7 +258,7 @@ void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink:
 
 	if (fs->msgid == 162) // FENCE_STATUS
 	{
-		cout << "FENCE STATUS MESSAGE FOUND..."
+		cout << "FENCE STATUS MESSAGE FOUND..." << endl;
 		mavlink_message_t mavlink_msg;
 
         mavlink_msg.msgid = fs->msgid;
