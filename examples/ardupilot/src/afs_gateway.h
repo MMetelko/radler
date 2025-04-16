@@ -39,8 +39,11 @@ class AFS_Gateway
     rclcpp::Subscription<mavros_msgs::msg::Mavlink>::SharedPtr mavlink_from_subscriber;
     mavlink_fence_status_t geofence_status_mailbox;
     rclcpp::Time geofence_status_timestamp;
-    void mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs);
-    //static constexpr uint32_t MAVLINK_MSG_ID_FENCE_STATUS = 162;
+    bool geofence_status_available;
+    mavlink_global_position_int_t globalposition_status_mailbox;
+    rclcpp::Time global_position_timestamp;
+    bool global_position_status_available;
+    void mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs);
 
     rclcpp::Subscription<mavros_msgs::msg::GPSRAW>::SharedPtr mavros_gpsraw_subscriber;
     mavros_msgs::msg::GPSRAW::ConstSharedPtr gps_status_mailbox;
@@ -56,9 +59,9 @@ class AFS_Gateway
     mavros_msgs::msg::WaypointList::ConstSharedPtr missionwaypoints_status_mailbox;
     void mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::ConstSharedPtr mws);
 
-    rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr mavros_globalposition_subscriber;
-    sensor_msgs::msg::NavSatFix::ConstSharedPtr globalposition_status_mailbox;
-    void mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps);
+    //rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr mavros_globalposition_subscriber;
+    //sensor_msgs::msg::NavSatFix::ConstSharedPtr globalposition_status_mailbox;
+    //void mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps);
 
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr mavros_diagnostics_subscriber;
     diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr diagnostics_status_mailbox;
@@ -72,6 +75,4 @@ class AFS_Gateway
     double current_heartbeat_loss_duration;
 
     int previous_flight_controls_cmd_id;
-
-    bool geofence_status_available;
 };

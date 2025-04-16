@@ -5,7 +5,7 @@ AFS_Gateway::AFS_Gateway()
 	node = rclcpp::Node::make_shared("afs_gateway");
 
 	mavros_battery_subscriber = node->create_subscription<sensor_msgs::msg::BatteryState>("/mavros/battery", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_battery_state_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture battery message updates at 4Hz
-	mavlink_from_subscriber = node->create_subscription<mavros_msgs::msg::Mavlink>("/uas1/mavlink_source", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavlink_fence_status_callback, this, std::placeholders::_1)); // queuesize 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
+	mavlink_from_subscriber = node->create_subscription<mavros_msgs::msg::Mavlink>("/uas1/mavlink_source", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavlink_callback, this, std::placeholders::_1)); // queuesize 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
 	mavros_gpsraw_subscriber = node->create_subscription<mavros_msgs::msg::GPSRAW>("/mavros/mavros/gps1/raw", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_gps_status_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture gps status message updates at 4Hz
 	flight_controls_mode = node->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
 	mavros_autopilotstate_subscriber = node->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_autopilotstate_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros state message updates at 1Hz
@@ -16,6 +16,7 @@ AFS_Gateway::AFS_Gateway()
 	previous_diagnostics_heartbeat_value = -1;
 	current_heartbeat_loss_duration = 0.0;
 	geofence_status_available = false;
+	global_position_status_available = false;
 }
 
 void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_t* o, radl_out_flags_t* o_f)
@@ -55,6 +56,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					<< "with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
 					<< endl;
 			this->geofence_status_available = false;
+			this->geofence_status_mailbox = nullptr;
 			radl_turn_off(radl_STALE, &o_f->geofence_status);
 		} else {
 			radl_turn_on(radl_STALE, &o_f->geofence_status);
@@ -109,18 +111,17 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			cout << "Mission Way Points status mailbox is null" << endl;
 		}
 
-		if (this->globalposition_status_mailbox) {
+		if (this->global_position_status_available) {
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 					<< "Global Navigation Position (x_lat,y_long,z_alt): " << "("
-					<< (double) this->globalposition_status_mailbox->latitude << ","
-					<< (double) this->globalposition_status_mailbox->longitude << ","
-					<< (double) this->globalposition_status_mailbox->altitude << ") "
-					<< "with status message at (" << formatTimestamp(this->globalposition_status_mailbox->header.stamp) << ") "
+					<< (double) this->globalposition_status_mailbox.lat * 1e-7 << ","
+					<< (double) this->globalposition_status_mailbox.lon * 1e-7 << ","
+					<< (double) this->globalposition_status_mailbox.alt * 1e-3 << ") "
+					<< "with status message at (" << formatTimestamp(this->global_position_status_timestamp) << ") "
 					<< endl;
-		this->globalposition_status_mailbox = nullptr;
-		} else {
-			cout << "Global Position status mailbox is null" << endl;
-		}
+			this->global_position_status_available = false;
+			this->globalposition_status_mailbox = nullptr;
+		} 
 
 		if (this->diagnostics_status_mailbox) {
 			try {
@@ -249,23 +250,37 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 	this->battery_status_mailbox = bs;
 }
 
-void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs)
+void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
-	// int fence_status_msgid;
-	// fence_status_msgid = static_cast<int>(MAVLINK_MSG_ID_FENCE_STATUS);
-	// if (fs->msgid == fence_status_msgid)  // FENCE_STATUS
-	cout << "MAVLINK msgid = " << fs->msgid << endl;
-
-	if (fs->msgid == 162) // FENCE_STATUS
+	cout << "MAVLINK msgid = " << msg->msgid << endl;
+	// Note: using the enums did not result in grabbing the message, so using hard coded values on purpose
+	if (msg->msgid == 33) // MAVLINK_MSG_ID_GLOBAL_POSITION_INT
 	{
-		cout << "FENCE STATUS MESSAGE FOUND..." << endl;
+		cout << "MAVLINK global position message found..." << endl;
 		mavlink_message_t mavlink_msg;
 
-        mavlink_msg.msgid = fs->msgid;
-        mavlink_msg.sysid = fs->sysid;
-        mavlink_msg.compid = fs->compid;
-		for (size_t i = 0; i < fs->payload64.size() && i < sizeof(mavlink_msg.payload64)/sizeof(mavlink_msg.payload64[0]); ++i) {
-            mavlink_msg.payload64[i] = fs->payload64[i];
+		mavlink_msg.msgid = msg->msgid;
+		mavlink_msg.sysid = msg->sysid;
+		mavlink_msg.compid = msg->compid;
+		for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_msg.payload64)/sizeof(mavlink_msg.payload64[0]); ++i) {
+            mavlink_msg.payload64[i] = msg->payload64[i];
+        }
+		
+		mavlink_msg_global_position_int_decode(&mavlink_msg, &this->globalposition_status_mailbox);
+		this->global_position_status_available = true;
+		this->global_position_timestamp = this->node->now();
+	}
+	
+	else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
+	{
+		cout << "MAVLINK fence status message found..." << endl;
+		mavlink_message_t mavlink_msg;
+
+		mavlink_msg.msgid = msg->msgid;
+		mavlink_msg.sysid = msg->sysid;
+		mavlink_msg.compid = msg->compid;
+		for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_msg.payload64)/sizeof(mavlink_msg.payload64[0]); ++i) {
+            mavlink_msg.payload64[i] = msg->payload64[i];
         }
 
         mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
