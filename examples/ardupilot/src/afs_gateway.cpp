@@ -10,7 +10,7 @@ AFS_Gateway::AFS_Gateway()
 	flight_controls_mode = node->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
 	mavros_autopilotstate_subscriber = node->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_autopilotstate_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros state message updates at 1Hz
 	mavros_missionwaypoints_subscriber = node->create_subscription<mavros_msgs::msg::WaypointList>("/mavros/mavros/waypoints", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_missionwaypoints_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture mavros mission waypoint message updates atvery slow < 0.5 Hz
-	mavros_globalposition_subscriber = node->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_globalposition_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture global position from EKF with GPS Fix message updates at 4Hz
+	//mavros_globalposition_subscriber = node->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_globalposition_callback, this, std::placeholders::_1)); // queue size 2 is good enough to capture global position from EKF with GPS Fix message updates at 4Hz
 	mavros_diagnostics_subscriber = node->create_subscription<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", rclcpp::SensorDataQoS(), std::bind(&AFS_Gateway::mavros_diagnostics_callback, this, std::placeholders::_1)); // queue size 10 is good enough to capture FCS Diagnostics message updates at < 1Hz
 	previous_flight_controls_cmd_id = 0;
 	previous_diagnostics_heartbeat_value = -1;
@@ -56,7 +56,6 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					<< "with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
 					<< endl;
 			this->geofence_status_available = false;
-			this->geofence_status_mailbox = nullptr;
 			radl_turn_off(radl_STALE, &o_f->geofence_status);
 		} else {
 			radl_turn_on(radl_STALE, &o_f->geofence_status);
@@ -117,10 +116,9 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					<< (double) this->globalposition_status_mailbox.lat * 1e-7 << ","
 					<< (double) this->globalposition_status_mailbox.lon * 1e-7 << ","
 					<< (double) this->globalposition_status_mailbox.alt * 1e-3 << ") "
-					<< "with status message at (" << formatTimestamp(this->global_position_status_timestamp) << ") "
+					<< "with status message at (" << formatTimestamp(this->global_position_timestamp) << ") "
 					<< endl;
 			this->global_position_status_available = false;
-			this->globalposition_status_mailbox = nullptr;
 		} 
 
 		if (this->diagnostics_status_mailbox) {
@@ -304,10 +302,10 @@ void AFS_Gateway::mavros_missionwaypoints_callback(const mavros_msgs::msg::Waypo
 	this->missionwaypoints_status_mailbox = mws;
 }
 
-void AFS_Gateway::mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps)
-{
-	this->globalposition_status_mailbox = gps;
-}
+// void AFS_Gateway::mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps)
+// {
+// 	this->globalposition_status_mailbox = gps;
+// }
 
 void AFS_Gateway::mavros_diagnostics_callback(const diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr das)
 {
