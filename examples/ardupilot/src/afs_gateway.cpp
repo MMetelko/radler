@@ -112,10 +112,11 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
 		if (this->global_position_status_available) {
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-					<< "Global Navigation Position (x_lat,y_long,z_alt): " << "("
+					<< "Global Navigation Position (x_lat,y_long,z_alt,z_alt_relative): " << "("
 					<< (double) this->globalposition_status_mailbox.lat * 1e-7 << ","
 					<< (double) this->globalposition_status_mailbox.lon * 1e-7 << ","
-					<< (double) this->globalposition_status_mailbox.alt * 1e-3 << ") "
+					<< (double) this->globalposition_status_mailbox.alt * 1e-3 << ","
+					<< (double) this->globalposition_status_mailbox.relative_alt * 1e-3 << ") "
 					<< "with status message at (" << formatTimestamp(this->global_position_timestamp) << ") "
 					<< endl;
 			this->global_position_status_available = false;
@@ -142,13 +143,13 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
 				elapsed_diagnostics_status_duration = ((double)this->diagnostics_status_mailbox->header.stamp.sec - (double)previous_diagnostics_status_time.seconds());
 				elapsed_diagnostics_status_duration += (((double)this->diagnostics_status_mailbox->header.stamp.nanosec - (double)previous_diagnostics_status_time.nanoseconds())/1000000000.0);
-				cout << "elapsed_diagnostics_status_duration set..." << endl;
+				//cout << "elapsed_diagnostics_status_duration set..." << endl;
 				if (this->diagnostics_status_mailbox->status.size() > 2) {
 					if (!this->diagnostics_status_mailbox->status[2].values.empty()) {
 						current_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
-						cout << "current_diagnostics_heartbeat_value set..." << endl;
+						//cout << "current_diagnostics_heartbeat_value set..." << endl;
 					} else {
-						cout << "Invalid status array values is empty" << endl;
+						//cout << "Invalid status array values is empty" << endl;
 						return;
 					} 
 				} else {
@@ -250,11 +251,11 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 
 void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
-	cout << "MAVLINK msgid = " << msg->msgid << endl;
+	//cout << "MAVLINK msgid = " << msg->msgid << endl;
 	// Note: using the enums did not result in grabbing the message, so using hard coded values on purpose
 	if (msg->msgid == 33) // MAVLINK_MSG_ID_GLOBAL_POSITION_INT
 	{
-		cout << "MAVLINK global position message found..." << endl;
+		//cout << "MAVLINK global position message found..." << endl;
 		mavlink_message_t mavlink_msg;
 
 		mavlink_msg.msgid = msg->msgid;
@@ -271,7 +272,7 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
 	
 	else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
 	{
-		cout << "MAVLINK fence status message found..." << endl;
+		//cout << "MAVLINK fence status message found..." << endl;
 		mavlink_message_t mavlink_msg;
 
 		mavlink_msg.msgid = msg->msgid;

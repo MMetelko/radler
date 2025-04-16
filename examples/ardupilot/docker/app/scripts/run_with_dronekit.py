@@ -277,7 +277,7 @@ class DroneController:
 
             # First setup the desired parameters
             fence_params = {
-                'FENCE_ACTION': 1,
+                'FENCE_ACTION': 0,
                 'FENCE_ALT_MAX': 150.0,
                 'FENCE_RADIUS': 500.0,
                 'FENCE_TOTAL': len(points) - 1,
