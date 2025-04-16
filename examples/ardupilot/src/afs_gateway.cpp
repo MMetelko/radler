@@ -251,7 +251,8 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 
 void AFS_Gateway::mavlink_fence_status_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs)
 {
-	fence_status_msgid = static_cast<int>(MAVLINK_MSG_ID_FENCE_STATUS)
+	int fence_status_msgid;
+	fence_status_msgid = static_cast<int>(MAVLINK_MSG_ID_FENCE_STATUS);
 	if (fs->msgid == fence_status_msgid)  // FENCE_STATUS
 	{
 		mavlink_message_t mavlink_msg;
