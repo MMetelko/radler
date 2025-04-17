@@ -58,9 +58,10 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 				 //<< " with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
 				 << endl;
   
-			cout << "    Geofence Breach: # Breaches = "  << (int) o->geofence_status->breach_count << 
-				 ", Breach Type (none/fence/altitude/circle/polygon/external) = " << (int) o->geofence_status->breach_type << 
-				 ", Breach Time (since boot of last breach) = " << (int) o->geofence_status->breach_time << " ms" << endl;
+			cout << "Geofence Breach: # Breaches = "  << (int) o->geofence_status->breach_count
+				 << ", Breach Type (none/fence/altitude/circle/polygon/external) = " << (int) o->geofence_status->breach_type
+				 << ", Breach Time (since boot of last breach) = " << (int) o->geofence_status->breach_time << " ms" 
+				 << endl;
 
 			// cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 			// 		<< "geofence breach (status: 0/1 inside fence or outside, count: # breaches,  breach_type: 0/1/2/3 for none/min_alt/max_alt/bundary, breach time (ms) since boot of last breach): "
