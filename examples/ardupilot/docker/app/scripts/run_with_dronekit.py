@@ -280,7 +280,6 @@ class DroneController:
                 'FENCE_ACTION': 0,
                 'FENCE_ALT_MAX': 150.0,
                 'FENCE_RADIUS': 500.0,
-                'FENCE_AUTOENABLE': 2,
                 'FENCE_OPTIONS': 1,
                 'FENCE_TOTAL': len(points) - 1,
                 'FENCE_TYPE': 7
