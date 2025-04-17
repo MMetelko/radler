@@ -67,7 +67,7 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 	}
 
 	cout << "AFS Function at (" << formatTimestamp(current_time) << ") ";
-	     << "Remaining Battery: " << battery_remaining_percentage << ", T_rtl: " << *RADL_THIS->battery_T_rtl
+	     << "Remaining Battery: " << battery_remaining_percentage 
 		 << ", AFS State: " << afs_state
 		 //<< ", T_land: " << *RADL_THIS->battery_T_land <<", max_GPS_losses_allowed: " << (int) *RADL_THIS->max_GPS_losses_allowed << endl;
 		 << endl;
