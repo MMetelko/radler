@@ -30,7 +30,7 @@ class AFS_Function
     std::shared_ptr<rclcpp::Node> node;
 
     double battery_remaining_percentage;
-        uint gps_fix_type;
+    uint gps_fix_type;
     int gps_loss_count;
     double current_gps_loss_duration;
     rclcpp::Time previous_gps_loss_time;

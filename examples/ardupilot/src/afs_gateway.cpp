@@ -34,7 +34,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			o->battery_status->remaining_percentage = (this->battery_status_mailbox->percentage * 100.0); // [0.0,1.0] to [0.0, 100.0]
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 					<< "battery remaining: " << o->battery_status->remaining_percentage << "% "
-					<< "with status message at (" << formatTimestamp(this->battery_status_mailbox->header.stamp) << ") "
+					//<< "with status message at (" << formatTimestamp(this->battery_status_mailbox->header.stamp) << ") "
 					<< endl;
 			this->battery_status_mailbox = nullptr;
 			radl_turn_off(radl_STALE, &o_f->battery_status);
@@ -49,12 +49,25 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			o->geofence_status->breach_type = this->geofence_status_mailbox.breach_type;
 			o->geofence_status->breach_time = this->geofence_status_mailbox.breach_time;
 
+			// MM TODO: for debugging only
+			cout << "Breach Mitigation (none/velocity limiting/position limiting/landing/return to launch): " << (int) this->geofence_status_mailbox.breach_mitigation << endl;
+
+			// Simplified output
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-					<< "geofence breach (status: 0/1 inside fence or outside, count: # breaches,  breach_type: 0/1/2/3 for none/min_alt/max_alt/bundary, breach time (ms) since boot of last breach): "
-					<< "==> (" << (int) o->geofence_status->breach_status << ", " << (int) o->geofence_status->breach_count << ", "
-					<< (int) o->geofence_status->breach_type << ", " << (int) o->geofence_status->breach_time << ") "
-					<< "with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
-					<< endl;
+			  	 << "geofence breach: status (0/1 inside or outside fence) = " << (int) o->geofence_status->breach_status 
+				 //<< " with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
+				 << endl;
+  
+			cout << "geofence breach: # breaches = "  << (int) o->geofence_status->breach_count << 
+				 ", breach_type (none/fence/altitude/circle/polygon/external) = " << (int) o->geofence_status->breach_type << 
+				 ", breach time (ms, since boot of last breach) = " << (int) o->geofence_status->breach_time << endl;
+
+			// cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+			// 		<< "geofence breach (status: 0/1 inside fence or outside, count: # breaches,  breach_type: 0/1/2/3 for none/min_alt/max_alt/bundary, breach time (ms) since boot of last breach): "
+			// 		<< "==> (" << (int) o->geofence_status->breach_status << ", " << (int) o->geofence_status->breach_count << ", "
+			// 		<< (int) o->geofence_status->breach_type << ", " << (int) o->geofence_status->breach_time << ") "
+			// 		<< "with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
+			// 		<< endl;
 			this->geofence_status_available = false;
 			radl_turn_off(radl_STALE, &o_f->geofence_status);
 		} else {
@@ -68,12 +81,12 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			if ((o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_GPS)) || (o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_FIX))){
 				cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 						<< "GPS FIX LOSS with visible satellites: " << (int) o->gps_status->satellites_visible  << " "
-						<< "with status message at (" << formatTimestamp(this->gps_status_mailbox->header.stamp) << ") "
+						//<< "with status message at (" << formatTimestamp(this->gps_status_mailbox->header.stamp) << ") "
 						<< endl;
 			} else {
 				cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 						<< "GPS fine/normal with visible satellites: " << (int) o->gps_status->satellites_visible  << " "
-						<< "with status message at (" << formatTimestamp(this->gps_status_mailbox->header.stamp) << ") "
+						//<< "with status message at (" << formatTimestamp(this->gps_status_mailbox->header.stamp) << ") "
 						<< endl;
 			}
 			this->gps_status_mailbox = nullptr;
@@ -85,11 +98,11 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
 		if (this->autopilotstate_status_mailbox) {
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-					<< "Autopilot Mode: " << this->autopilotstate_status_mailbox->mode << " "
-					<< "(connected,armed,guided,manual_input,system_status): " << "(" << (int)this->autopilotstate_status_mailbox->connected
+					<< "Autopilot Mode: " << this->autopilotstate_status_mailbox->mode << ", "
+					<< "Vehicle Status (connected,armed,guided,manual_input,system_status): " << "(" << (int)this->autopilotstate_status_mailbox->connected
 					<< "," << (int)this->autopilotstate_status_mailbox->armed << "," << (int)this->autopilotstate_status_mailbox->guided
 					<< "," << (int)this->autopilotstate_status_mailbox->manual_input << "," << (int)this->autopilotstate_status_mailbox->system_status << ") "
-					<< "with status message at (" << formatTimestamp(this->autopilotstate_status_mailbox->header.stamp) << ") "
+					//<< "with status message at (" << formatTimestamp(this->autopilotstate_status_mailbox->header.stamp) << ") "
 					<< endl;
 		} else {
 			cout << "Autopilot status mailbox is null" << endl;
@@ -117,7 +130,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					<< (double) this->globalposition_status_mailbox.lon * 1e-7 << ","
 					<< (double) this->globalposition_status_mailbox.alt * 1e-3 << ","
 					<< (double) this->globalposition_status_mailbox.relative_alt * 1e-3 << ") "
-					<< "with status message at (" << formatTimestamp(this->global_position_timestamp) << ") "
+					//<< "with status message at (" << formatTimestamp(this->global_position_timestamp) << ") "
 					<< endl;
 			this->global_position_status_available = false;
 		} 
@@ -143,13 +156,13 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
 				elapsed_diagnostics_status_duration = ((double)this->diagnostics_status_mailbox->header.stamp.sec - (double)previous_diagnostics_status_time.seconds());
 				elapsed_diagnostics_status_duration += (((double)this->diagnostics_status_mailbox->header.stamp.nanosec - (double)previous_diagnostics_status_time.nanoseconds())/1000000000.0);
-				//cout << "elapsed_diagnostics_status_duration set..." << endl;
+				cout << "elapsed_diagnostics_status_duration set..." << endl;
 				if (this->diagnostics_status_mailbox->status.size() > 2) {
 					if (!this->diagnostics_status_mailbox->status[2].values.empty()) {
 						current_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
-						//cout << "current_diagnostics_heartbeat_value set..." << endl;
+						cout << "current_diagnostics_heartbeat_value set..." << endl;
 					} else {
-						//cout << "Invalid status array values is empty" << endl;
+						cout << "Invalid status array values is empty" << endl;
 						return;
 					} 
 				} else {
@@ -171,7 +184,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 						<< this->diagnostics_status_mailbox->status[2].values[0].key << ","
 						<< current_diagnostics_heartbeat_value  << "," << previous_diagnostics_heartbeat_value << ","
 						<< elapsed_diagnostics_status_duration << "," << current_heartbeat_loss_duration << ") "
-						<< "with status message at (" << formatTimestamp(this->diagnostics_status_mailbox->header.stamp) << ") "
+						//<< "with status message at (" << formatTimestamp(this->diagnostics_status_mailbox->header.stamp) << ") "
 						<< endl;
 				previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
 				previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
@@ -251,11 +264,13 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 
 void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
-	//cout << "MAVLINK msgid = " << msg->msgid << endl;
+	cout << "MAVLINK msgid = " << msg->msgid << endl;
 	// Note: using the enums did not result in grabbing the message, so using hard coded values on purpose
-	if (msg->msgid == 33) // MAVLINK_MSG_ID_GLOBAL_POSITION_INT
+	//if (msg->msgid == 33) // MAVLINK_MSG_ID_GLOBAL_POSITION_INT
+	cout << "MAVLINK_MSG_ID_GLOBAL_POSITION_INT = " << MAVLINK_MSG_ID_GLOBAL_POSITION_INT << endl;
+	if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
 	{
-		//cout << "MAVLINK global position message found..." << endl;
+		cout << "MAVLINK global position message found..." << endl;
 		mavlink_message_t mavlink_msg;
 
 		mavlink_msg.msgid = msg->msgid;
@@ -270,9 +285,10 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
 		this->global_position_timestamp = this->node->now();
 	}
 	
-	else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
+	//else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
+	else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
 	{
-		//cout << "MAVLINK fence status message found..." << endl;
+		cout << "MAVLINK fence status message found..." << endl;
 		mavlink_message_t mavlink_msg;
 
 		mavlink_msg.msgid = msg->msgid;

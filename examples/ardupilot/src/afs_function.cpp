@@ -67,16 +67,20 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 	}
 
 	cout << "AFS Function at (" << formatTimestamp(current_time) << ") ";
-	cout << "remaining battery: " << battery_remaining_percentage << ", T_rtl: " << *RADL_THIS->battery_T_rtl
-			 << ", T_land: " << *RADL_THIS->battery_T_land <<", max_GPS_losses_allowed: " << (int) *RADL_THIS->max_GPS_losses_allowed << endl;
-	cout << ", AFS State: " << afs_state
-			 << ", GPS Fix State: " << gps_fix_state << ", GPS Loss Count: " << gps_loss_count
-			 << ", current gp loss duration: " << current_gps_loss_duration
-			 << ", previous gps loss time: " << formatTimestamp(previous_gps_loss_time)
-			 << ", Max Altitude Breach Event: " << max_altitude_breach_event
-			 << ", current max altitude breach duration: " << current_max_altitude_breach_duration
-			 << ", previous max altitude breach event time: " << formatTimestamp(previous_max_altitude_breach_time)
-			 << ", Copter Command: ";
+	     << "Remaining Battery: " << battery_remaining_percentage << ", T_rtl: " << *RADL_THIS->battery_T_rtl
+		 << ", AFS State: " << afs_state
+		 //<< ", T_land: " << *RADL_THIS->battery_T_land <<", max_GPS_losses_allowed: " << (int) *RADL_THIS->max_GPS_losses_allowed << endl;
+		 << endl;
+	cout << "GPS Fix State: " << gps_fix_state << ", GPS Loss Count: " << gps_loss_count
+		 << ", current gp loss duration: " << current_gps_loss_duration
+		 << ", previous gps loss time: " << formatTimestamp(previous_gps_loss_time)
+		 << endl;
+	cout << "Max Altitude Breach Event: " << max_altitude_breach_event
+		 << ", current max altitude breach duration: " << current_max_altitude_breach_duration
+		 << ", previous max altitude breach event time: " << formatTimestamp(previous_max_altitude_breach_time)
+		 << endl;
+	cout << "Copter Command: ";
+		 << endl;
 
 	radl_turn_on(radl_STALE, &o_f->copter_command);
 	radl_turn_on(radl_STALE, &o_f->gcs_message);
