@@ -66,7 +66,7 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 		}
 	}
 
-	cout << "AFS Function at (" << formatTimestamp(current_time) << ") ";
+	cout << "AFS Function at (" << formatTimestamp(current_time) << ") "
 	     << "Remaining Battery: " << battery_remaining_percentage 
 		 << ", AFS State: " << afs_state
 		 //<< ", T_land: " << *RADL_THIS->battery_T_land <<", max_GPS_losses_allowed: " << (int) *RADL_THIS->max_GPS_losses_allowed << endl;
@@ -78,8 +78,6 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 	cout << "Max Altitude Breach Event: " << max_altitude_breach_event
 		 << ", current max altitude breach duration: " << current_max_altitude_breach_duration
 		 << ", previous max altitude breach event time: " << formatTimestamp(previous_max_altitude_breach_time)
-		 << endl;
-	cout << "Copter Command: ";
 		 << endl;
 
 	radl_turn_on(radl_STALE, &o_f->copter_command);
