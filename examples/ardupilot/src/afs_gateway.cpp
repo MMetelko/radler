@@ -50,17 +50,17 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			o->geofence_status->breach_time = this->geofence_status_mailbox.breach_time;
 
 			// MM TODO: for debugging only
-			cout << "Breach Mitigation (none/velocity limiting/position limiting/landing/return to launch): " << (int) this->geofence_status_mailbox.breach_mitigation << endl;
+			cout << "DEBUGGING ONLY: Breach Mitigation (none/velocity limiting/position limiting/landing/return to launch): " << (int) this->geofence_status_mailbox.breach_mitigation << endl;
 
 			// Simplified output
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-			  	 << "geofence breach: status (0/1 inside or outside fence) = " << (int) o->geofence_status->breach_status 
+			  	 << "Geofence Breach: Status (0/1 inside or outside fence) = " << (int) o->geofence_status->breach_status 
 				 //<< " with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
 				 << endl;
   
-			cout << "geofence breach: # breaches = "  << (int) o->geofence_status->breach_count << 
-				 ", breach_type (none/fence/altitude/circle/polygon/external) = " << (int) o->geofence_status->breach_type << 
-				 ", breach time (ms, since boot of last breach) = " << (int) o->geofence_status->breach_time << endl;
+			cout << "    Geofence Breach: # Breaches = "  << (int) o->geofence_status->breach_count << 
+				 ", Breach Type (none/fence/altitude/circle/polygon/external) = " << (int) o->geofence_status->breach_type << 
+				 ", Breach Time (since boot of last breach) = " << (int) o->geofence_status->breach_time << " ms" << endl;
 
 			// cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 			// 		<< "geofence breach (status: 0/1 inside fence or outside, count: # breaches,  breach_type: 0/1/2/3 for none/min_alt/max_alt/bundary, breach time (ms) since boot of last breach): "
@@ -264,13 +264,8 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 
 void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
-	cout << "MAVLINK msgid = " << msg->msgid << endl;
-	// Note: using the enums did not result in grabbing the message, so using hard coded values on purpose
-	//if (msg->msgid == 33) // MAVLINK_MSG_ID_GLOBAL_POSITION_INT
-	cout << "MAVLINK_MSG_ID_GLOBAL_POSITION_INT = " << MAVLINK_MSG_ID_GLOBAL_POSITION_INT << endl;
 	if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
 	{
-		cout << "MAVLINK global position message found..." << endl;
 		mavlink_message_t mavlink_msg;
 
 		mavlink_msg.msgid = msg->msgid;
@@ -288,7 +283,6 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
 	//else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
 	else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
 	{
-		cout << "MAVLINK fence status message found..." << endl;
 		mavlink_message_t mavlink_msg;
 
 		mavlink_msg.msgid = msg->msgid;
