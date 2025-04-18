@@ -4,6 +4,10 @@
 #define RED "\033[0;31m"
 #define RESET "\033[0m"
 
+const char* breach_status[] = {"Inside", "Outside"};
+const char* breach_types[] = {"None", "Fence", "Altitude", "Circle", "Polygon", "External"};
+
+
 AFS_Gateway::AFS_Gateway()
 {	
 	node = rclcpp::Node::make_shared("afs_gateway");
@@ -58,10 +62,10 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
 			// Simplified output
 			cout << RED << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-			  	 << "Geofence Breach: Status (0/1 inside or outside fence) = " << (int) o->geofence_status->breach_status << "\n"
-  				 << "Geofence Breach: # Breaches = "  << (int) o->geofence_status->breach_count
-				 << ", Breach Type (none/fence/altitude/circle/polygon/external) = " << (int) o->geofence_status->breach_type
-				 << ", Breach Time (since boot of last breach) = " << (int) o->geofence_status->breach_time << " ms" << RESET
+			  	 << "Geofence Breach: Status = " << breach_status[o->geofence_status->breach_status] << "\n"
+  				 << "  # Breaches = " << (int) o->geofence_status->breach_count
+				 << ", Breach Type = " << breach_types[o->geofence_status->breach_type] << "\n"
+				 << ", Breach Time = " << (int) o->geofence_status->breach_time << "ms (since boot of last breach)" << RESET
 				 << endl;
 
 			this->geofence_status_available = false;
@@ -94,8 +98,8 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
 		if (this->autopilotstate_status_mailbox) {
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-					<< "Autopilot Mode: " << this->autopilotstate_status_mailbox->mode << ", "
-					<< "Vehicle Status (connected,armed,guided,manual_input,system_status): " << "(" << (int)this->autopilotstate_status_mailbox->connected
+					<< "Autopilot Mode: " << this->autopilotstate_status_mailbox->mode << "\n"
+					<< "Vehicle Status (connected,armed,guided,manual_input,system_status): " << "(" << (int)this->autopilotstate_status_mailbox->connected 
 					<< "," << (int)this->autopilotstate_status_mailbox->armed << "," << (int)this->autopilotstate_status_mailbox->guided
 					<< "," << (int)this->autopilotstate_status_mailbox->manual_input << "," << (int)this->autopilotstate_status_mailbox->system_status << ") "
 					//<< "with status message at (" << formatTimestamp(this->autopilotstate_status_mailbox->header.stamp) << ") "
@@ -208,7 +212,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					flight_controls_mode->async_send_request(request);
 					previous_flight_controls_cmd_id = i->copter_command->cmd_id;
 				}
-				cout << "Copter Command: Return to Launch i.e. Returns to above takeoff location and then landing" << endl;
+				cout << "Copter Command: Return to Launch \n  i.e. Returns to above takeoff location and then landing" << endl;
 			} else if (i->copter_command->cmd_id == 2){
 				if (
 						(previous_flight_controls_cmd_id != i->copter_command->cmd_id) // new command
@@ -219,7 +223,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					flight_controls_mode->async_send_request(request);
 					previous_flight_controls_cmd_id = i->copter_command->cmd_id;
 				}
-				cout << "Copter Command: Land At Current Location i.e. Reduces altitude to ground level, attempts to go straight down" << endl;
+				cout << "Copter Command: Land At Current Location \n  i.e. Reduces altitude to ground level, attempts to go straight down" << endl;
 			} else if (i->copter_command->cmd_id == 3){
 				if (
 						(previous_flight_controls_cmd_id != i->copter_command->cmd_id) // new command
@@ -232,7 +236,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					flight_controls_mode->async_send_request(request);
 					previous_flight_controls_cmd_id = i->copter_command->cmd_id;
 				}
-				cout << "Copter Command: Hover At Current Location i.e. AltHold -> holds altitude. Loiter mode not used and so position not held because it requires GPS. Instead using Guided_NoGPS after AltHold" << endl;
+				cout << "Copter Command: Hover At Current Location \n  i.e. AltHold -> holds altitude. Loiter mode not used and so position not held because it requires GPS. Instead using Guided_NoGPS after AltHold" << endl;
 			} else if (i->copter_command->cmd_id == 4){
 				if (
 						(previous_flight_controls_cmd_id != i->copter_command->cmd_id) // new command
@@ -243,7 +247,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 					flight_controls_mode->async_send_request(request);
 					previous_flight_controls_cmd_id = i->copter_command->cmd_id;
 				}
-				cout << "Copter Command: Normal Flight i.e. Auto mode -> Executes pre-defined mission and continue following next set of waypoints" << endl;
+				cout << "Copter Command: Normal Flight \n  i.e. Auto mode -> Executes pre-defined mission and continue following next set of waypoints" << endl;
 			}
 		}
 	} catch (const std::exception& e) {
