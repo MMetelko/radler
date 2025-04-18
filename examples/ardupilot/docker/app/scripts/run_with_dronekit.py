@@ -197,17 +197,6 @@ class DroneController:
             print("Parameters loaded.  Waiting for them to take effect...")
             self.vehicle.wait_ready('parameters', timeout=300)
    
-    # Upload Mission Waypoints
-    def upload_waypoint(self, i, wp, max_retries=3):
-        for attempt in range(max_retries):
-            self.vehicle._master.mav.mission_item_int_send(
-                self.target_system, mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                i, *wp[1:])
-            ack = self.vehicle._master.recv_match(type='MISSION_ACK', blocking=True, timeout=15)
-            if ack and ack.type == mavutil.mavlink.MAV_MISSION_ACCEPTED:
-                return True
-        return False
-        
     def load_mission_waypoints(self):
         try:
             mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
@@ -288,9 +277,10 @@ class DroneController:
 
             # First setup the desired parameters
             fence_params = {
-                'FENCE_ACTION': 1,
+                'FENCE_ACTION': 0,
                 'FENCE_ALT_MAX': 150.0,
                 'FENCE_RADIUS': 500.0,
+                'FENCE_OPTIONS': 1,
                 'FENCE_TOTAL': len(points) - 1,
                 'FENCE_TYPE': 7
             }
@@ -303,6 +293,7 @@ class DroneController:
             else:
                 for param, value in fence_params.items():
                     self.vehicle.parameters[param] = value
+                    self.vehicle.wait_ready('parameters', timeout=300)
                     print(f"{param}: {self.vehicle.parameters[param]}")
                                 
                 # Set fence points, do not load the last point
@@ -329,11 +320,11 @@ class DroneController:
                     #    fence breach
                     #    fence OK
                     #    pre-arm good
-                    time.sleep(0.3)  # slight delay to ensure message delivery
+                    time.sleep(0.25)  # slight delay to ensure message delivery
                     
                 uploaded_fence_pts_total = self.vehicle.parameters['FENCE_TOTAL']
                 print(f"Fence uploaded: {uploaded_fence_pts_total} points")
-                self.vehicle.wait_ready('parameters', timeout=300)
+                time.sleep(3) # Give time to setup fence
 
                 # Verify fence points
                 if self.vehicle.parameters['FENCE_TOTAL'] == (len(points) - 1):
@@ -343,6 +334,22 @@ class DroneController:
                     
             # Show the fence
             self.vehicle.parameters['FENCE_ENABLE'] = 1
+            self.vehicle.flush()
+            self.vehicle.wait_ready('parameters', timeout=300)
+            
+            # Try an addition way to enable the fence
+            fence_type = fence_params['FENCE_TYPE']
+            enable_msg = self.vehicle.message_factory.command_long_encode(
+                self.target_system, 
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
+                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE, # command
+                0,  # confirmation
+                1,    # enable
+                fence_type,
+                0, 0, 0, 0, 0
+            )
+            #print(f"Fence Enable message: {enable_msg}")
+            self.vehicle.send_mavlink(enable_msg)
             self.vehicle.flush()
             self.vehicle.wait_ready('parameters', timeout=300)
             
@@ -407,6 +414,9 @@ class DroneController:
         self.vehicle.send_mavlink(msg)
         self.vehicle.flush()  
             
+        self.send_batreset()
+        print("System Battery Power is reset")
+        
         # Make sure flight mode is reset
         if self.vehicle.mode == 'AUTO':
             self.emergency_reset()
@@ -435,9 +445,6 @@ class DroneController:
                 time.sleep(1)
             
             print("Vehicle is now in STABILIZE mode.")
-        
-        self.send_batreset()
-        print("System Battery Power is reset")
         
     def reboot_autopilot(self):
         # Disable the geofence
