@@ -260,37 +260,43 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 
 void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
-	//if (msg->msgid == 33)
-	if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
-	{
-		mavlink_message_t mavlink_msg;
+	try{
+		//if (msg->msgid == 33)
+		if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
+		{
+			mavlink_message_t mavlink_msg;
 
-		mavlink_msg.msgid = msg->msgid;
-		mavlink_msg.sysid = msg->sysid;
-		mavlink_msg.compid = msg->compid;
-		for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_msg.payload64)/sizeof(mavlink_msg.payload64[0]); ++i) {
-            mavlink_msg.payload64[i] = msg->payload64[i];
-        }
-		
-		mavlink_msg_global_position_int_decode(&mavlink_msg, &this->globalposition_status_mailbox);
-		this->global_position_status_available = true;
-		this->global_position_timestamp = this->node->now();
-	}
-	//else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
-	else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
-	{
-		mavlink_message_t mavlink_msg;
+			mavlink_msg.msgid = msg->msgid;
+			mavlink_msg.sysid = msg->sysid;
+			mavlink_msg.compid = msg->compid;
+			for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_msg.payload64)/sizeof(mavlink_msg.payload64[0]); ++i) {
+				mavlink_msg.payload64[i] = msg->payload64[i];
+			}
+			
+			mavlink_msg_global_position_int_decode(&mavlink_msg, &this->globalposition_status_mailbox);
+			this->global_position_status_available = true;
+			this->global_position_timestamp = this->node->now();
+		}
+		//else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
+		else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
+		{
+			mavlink_message_t mavlink_msg;
 
-		mavlink_msg.msgid = msg->msgid;
-		mavlink_msg.sysid = msg->sysid;
-		mavlink_msg.compid = msg->compid;
-		for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_msg.payload64)/sizeof(mavlink_msg.payload64[0]); ++i) {
-            mavlink_msg.payload64[i] = msg->payload64[i];
-        }
+			mavlink_msg.msgid = msg->msgid;
+			mavlink_msg.sysid = msg->sysid;
+			mavlink_msg.compid = msg->compid;
+			for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_msg.payload64)/sizeof(mavlink_msg.payload64[0]); ++i) {
+				mavlink_msg.payload64[i] = msg->payload64[i];
+			}
 
-        mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
-		this->geofence_status_available = true;
-		this->geofence_status_timestamp = this->node->now();
+			mavlink_msg_fence_status_decode(&mavlink_msg, &this->geofence_status_mailbox);
+			this->geofence_status_available = true;
+			this->geofence_status_timestamp = this->node->now();
+		}
+	} catch (const std::exception& e) {
+		cout << "Exception in MAVLink callback function: " << e.what() << endl;
+	} catch (...) {
+		cout << "Unknown exception in MAVLink callback function" << endl;
 	}
 }
 
