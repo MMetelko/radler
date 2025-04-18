@@ -1,5 +1,9 @@
 #include "afs_gateway.h"
 
+// Highlights Event Actions
+#define RED "\033[0;31m"
+#define RESET "\033[0m"
+
 AFS_Gateway::AFS_Gateway()
 {	
 	node = rclcpp::Node::make_shared("afs_gateway");
@@ -53,22 +57,13 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			cout << "DEBUGGING ONLY: Breach Mitigation (none/velocity limiting/position limiting/landing/return to launch): " << (int) this->geofence_status_mailbox.breach_mitigation << endl;
 
 			// Simplified output
-			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-			  	 << "Geofence Breach: Status (0/1 inside or outside fence) = " << (int) o->geofence_status->breach_status 
-				 //<< " with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
-				 << endl;
-  
-			cout << "Geofence Breach: # Breaches = "  << (int) o->geofence_status->breach_count
+			cout << RED << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+			  	 << "Geofence Breach: Status (0/1 inside or outside fence) = " << (int) o->geofence_status->breach_status << "\n"
+  				 << "Geofence Breach: # Breaches = "  << (int) o->geofence_status->breach_count
 				 << ", Breach Type (none/fence/altitude/circle/polygon/external) = " << (int) o->geofence_status->breach_type
-				 << ", Breach Time (since boot of last breach) = " << (int) o->geofence_status->breach_time << " ms" 
+				 << ", Breach Time (since boot of last breach) = " << (int) o->geofence_status->breach_time << " ms" << RESET
 				 << endl;
 
-			// cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-			// 		<< "geofence breach (status: 0/1 inside fence or outside, count: # breaches,  breach_type: 0/1/2/3 for none/min_alt/max_alt/bundary, breach time (ms) since boot of last breach): "
-			// 		<< "==> (" << (int) o->geofence_status->breach_status << ", " << (int) o->geofence_status->breach_count << ", "
-			// 		<< (int) o->geofence_status->breach_type << ", " << (int) o->geofence_status->breach_time << ") "
-			// 		<< "with status message at (" << formatTimestamp(this->geofence_status_timestamp) << ") "
-			// 		<< endl;
 			this->geofence_status_available = false;
 			radl_turn_off(radl_STALE, &o_f->geofence_status);
 		} else {
@@ -80,8 +75,8 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			o->gps_status->fix_type = this->gps_status_mailbox->fix_type;
 			o->gps_status->satellites_visible = this->gps_status_mailbox->satellites_visible;
 			if ((o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_GPS)) || (o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_FIX))){
-				cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-						<< "GPS FIX LOSS with visible satellites: " << (int) o->gps_status->satellites_visible  << " "
+				cout << RED << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+						<< "GPS FIX LOSS with visible satellites: " << (int) o->gps_status->satellites_visible  << " " << RESET
 						//<< "with status message at (" << formatTimestamp(this->gps_status_mailbox->header.stamp) << ") "
 						<< endl;
 			} else {
