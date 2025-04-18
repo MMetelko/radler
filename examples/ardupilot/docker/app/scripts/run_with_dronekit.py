@@ -414,6 +414,9 @@ class DroneController:
         self.vehicle.send_mavlink(msg)
         self.vehicle.flush()  
             
+        self.send_batreset()
+        print("System Battery Power is reset")
+        
         # Make sure flight mode is reset
         if self.vehicle.mode == 'AUTO':
             self.emergency_reset()
@@ -442,9 +445,6 @@ class DroneController:
                 time.sleep(1)
             
             print("Vehicle is now in STABILIZE mode.")
-        
-        self.send_batreset()
-        print("System Battery Power is reset")
         
     def reboot_autopilot(self):
         # Disable the geofence
