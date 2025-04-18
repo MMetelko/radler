@@ -54,7 +54,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 			o->geofence_status->breach_time = this->geofence_status_mailbox.breach_time;
 
 			// MM TODO: for debugging only
-			cout << "DEBUGGING ONLY: Breach Mitigation (none/velocity limiting/position limiting/landing/return to launch): " << (int) this->geofence_status_mailbox.breach_mitigation << endl;
+			cout << RED << "DEBUGGING ONLY: Breach Mitigation (none/velocity limiting/position limiting/landing/return to launch): " << (int) this->geofence_status_mailbox.breach_mitigation << RESET << endl;
 
 			// Simplified output
 			cout << RED << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
@@ -260,8 +260,8 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 
 void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
-	//if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
-	if (msg->msgid == 33)
+	//if (msg->msgid == 33)
+	if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
 	{
 		mavlink_message_t mavlink_msg;
 
@@ -276,8 +276,8 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
 		this->global_position_status_available = true;
 		this->global_position_timestamp = this->node->now();
 	}
-	//else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
-	else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
+	//else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
+	else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
 	{
 		mavlink_message_t mavlink_msg;
 
