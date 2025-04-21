@@ -38,7 +38,6 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
 		mavlink_message_t mmsg;
 
-		cout << "Start AFS Gateway step function..." << endl;
 		if (this->battery_status_mailbox) {
 			o->battery_status->remaining_percentage = (this->battery_status_mailbox->percentage * 100.0); // [0.0,1.0] to [0.0, 100.0]
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
@@ -110,10 +109,9 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 		}
 
 		if (this->missionwaypoints_status_mailbox) {
-			cout << "Mission Way Points available..." << endl;
 			int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-					<< "Current/Last reached Waypoint (seq/total,x_lat,y_long,z_alt): " << "("
+					<< "Current Waypoint (seq/total,x_lat,y_long,z_alt): " << "("
 					<< seq << "/" << (((int) *RADL_THIS->max_number_mission_waypoints) - 1) << ","
 					<< (double) this->missionwaypoints_status_mailbox->waypoints[seq].x_lat << ","
 					<< (double) this->missionwaypoints_status_mailbox->waypoints[seq].y_long << ","
@@ -126,7 +124,6 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
 		if (this->global_position_status_available) {
 			try {
-				cout << "Global Navigation Position data available..." << endl;
 				cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 						<< "Global Navigation Position (x_lat,y_long,z_alt,z_alt_relative): " << "("
 						<< (double) this->globalposition_status_mailbox.lat * 1e-7 << ","
@@ -207,7 +204,6 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 		//ignore staleness check as might have repeated send command to autopilot on failure
 		//if (!radl_is_stale(i_f->copter_command) && !radl_is_timeout(i_f->copter_command)) {
 		if (!radl_is_timeout(i_f->copter_command)) {
-			cout << "Copter command available..." << endl;
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") ";
 			if (i->copter_command->cmd_id == 0) {
 				cout << "Copter Command: None" << endl;
