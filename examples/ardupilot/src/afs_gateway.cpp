@@ -110,6 +110,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 		}
 
 		if (this->missionwaypoints_status_mailbox) {
+			cout << "Mission Way Points available..." << endl;
 			int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
 					<< "Current/Last reached Waypoint (seq/total,x_lat,y_long,z_alt): " << "("
@@ -124,15 +125,22 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 		}
 
 		if (this->global_position_status_available) {
-			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-					<< "Global Navigation Position (x_lat,y_long,z_alt,z_alt_relative): " << "("
-					<< (double) this->globalposition_status_mailbox.lat * 1e-7 << ","
-					<< (double) this->globalposition_status_mailbox.lon * 1e-7 << ","
-					<< (double) this->globalposition_status_mailbox.alt * 1e-3 << ","
-					<< (double) this->globalposition_status_mailbox.relative_alt * 1e-3 << ") "
-					//<< "with status message at (" << formatTimestamp(this->global_position_timestamp) << ") "
-					<< endl;
-			this->global_position_status_available = false;
+			try {
+				cout << "Global Navigation Position data available..." << endl;
+				cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+						<< "Global Navigation Position (x_lat,y_long,z_alt,z_alt_relative): " << "("
+						<< (double) this->globalposition_status_mailbox.lat * 1e-7 << ","
+						<< (double) this->globalposition_status_mailbox.lon * 1e-7 << ","
+						<< (double) this->globalposition_status_mailbox.alt * 1e-3 << ","
+						<< (double) this->globalposition_status_mailbox.relative_alt * 1e-3 << ") "
+						//<< "with status message at (" << formatTimestamp(this->global_position_timestamp) << ") "
+						<< endl;
+				this->global_position_status_available = false;
+			} catch (const std::exception& e) {
+				cout << "Exception in global poistion status check: " << e.what() << endl;
+			} catch (...) {
+				cout << "Unknown exception in global poistion status check" << endl;
+			}
 		} 
 
 		if (this->diagnostics_status_mailbox) {
@@ -199,6 +207,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 		//ignore staleness check as might have repeated send command to autopilot on failure
 		//if (!radl_is_stale(i_f->copter_command) && !radl_is_timeout(i_f->copter_command)) {
 		if (!radl_is_timeout(i_f->copter_command)) {
+			cout << "Copter command available..." << endl;
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") ";
 			if (i->copter_command->cmd_id == 0) {
 				cout << "Copter Command: None" << endl;
