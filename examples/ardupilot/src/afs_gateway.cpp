@@ -38,6 +38,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
 		mavlink_message_t mmsg;
 
+		cout << "Start AFS Gateway step function..." << endl;
 		if (this->battery_status_mailbox) {
 			o->battery_status->remaining_percentage = (this->battery_status_mailbox->percentage * 100.0); // [0.0,1.0] to [0.0, 100.0]
 			cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
@@ -107,7 +108,6 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 		} else {
 			cout << "Autopilot status mailbox is null" << endl;
 		}
-
 
 		if (this->missionwaypoints_status_mailbox) {
 			int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
