@@ -429,7 +429,9 @@ class DroneController:
             print(" Waiting for stabilize mode...")
             time.sleep(1)            
             
-            print("Vehicle is now in STABILIZE mode.")
+        print("Vehicle is now in STABILIZE mode.")
+        # delay while the Radler functions restart
+        time.sleep(15)    
         
     def reboot_autopilot(self):
         # Disable the geofence
