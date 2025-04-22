@@ -337,7 +337,10 @@ void AFS_Gateway::mavros_autopilotstate_callback(const mavros_msgs::msg::State::
 
 void AFS_Gateway::mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::ConstSharedPtr mws)
 {
-    this->missionwaypoints_status_mailbox = mws;
+    if (!mws->waypoints.empty())
+    {
+        this->missionwaypoints_status_mailbox = mws;
+    }
 }
 
 // void AFS_Gateway::mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps)
