@@ -239,7 +239,7 @@ RUN git clone https://github.com/MMetelko/radler.git
 RUN mv radler /home/${USER_NAME}
 RUN cd $RADLERDIR && \ 
     git submodule update --init --recursive && \
-    git checkout thermo-dev-ardu-descert
+    git checkout mm-ardupilot-descert
 
 RUN sudo mv /opt/ros/foxy/share/mavros/launch /opt/ros/foxy/share/mavros/launch.bak
 RUN sudo cp -r ${RADLERDIR}/examples/ardupilot/launch /opt/ros/foxy/share/mavros
@@ -322,7 +322,7 @@ ENV DISPLAY=:0.0 \
 COPY ardupilot_entrypoint.sh /ardupilot_entrypoint.sh
 RUN sudo chown ${USER_NAME}:${USER_NAME} /ardupilot_entrypoint.sh
 
-EXPOSE 8090 8501 14550
+EXPOSE 8501
 
 # Build the ardupilot SITL simulator
 # Finish pulling the ardupilot repository
