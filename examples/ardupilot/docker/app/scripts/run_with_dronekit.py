@@ -9,6 +9,7 @@ import os
 import signal
 import sys
 import pexpect
+import subprocess
 
 controller = None
 
@@ -385,24 +386,28 @@ class DroneController:
         print("Vehicle is disarmed")
 
     def emergency_reset(self):
-        self.vehicle.mode = VehicleMode("GUIDED")
-        while self.vehicle.mode != 'GUIDED':
-            print(" Waiting for guiding mode...")
-            time.sleep(1)
+        # self.vehicle.mode = VehicleMode("GUIDED")
+        # while self.vehicle.mode != 'GUIDED':
+        #     print(" Waiting for guiding mode...")
+        #     time.sleep(1)
 
-        self.vehicle.mode = VehicleMode("RTL")
-        while self.vehicle.mode != 'RTL':
-            print(" Waiting for RTL mode...")
-            time.sleep(1)
+        # self.vehicle.mode = VehicleMode("RTL")
+        # while self.vehicle.mode != 'RTL':
+        #     print(" Waiting for RTL mode...")
+        #     time.sleep(1)
             
-        self.wait_for_disarm()
+        # self.wait_for_disarm()
         
-        self.vehicle.mode = VehicleMode("STABILIZE")
-        while self.vehicle.mode != 'STABILIZE':
-            print(" Waiting for stabilize mode...")
-            time.sleep(1)
+        # self.vehicle.mode = VehicleMode("STABILIZE")
+        # while self.vehicle.mode != 'STABILIZE':
+        #     print(" Waiting for stabilize mode...")
+        #     time.sleep(1)
         print("Emergency reset complete")
        
+    def restart_radler_code(self):
+        subprocess.run(["pkill", "-f", "afs_function"])
+        subprocess.run(["pkill", "-f", "afs_gateway"])
+
     # Reset battery
     def reset_simulation(self):
         # Make sure current mission waypoint is index 0
@@ -417,34 +422,16 @@ class DroneController:
         self.send_batreset()
         print("System Battery Power is reset")
         
-        # Make sure flight mode is reset
-        if self.vehicle.mode == 'AUTO':
-            self.emergency_reset()
-        elif self.vehicle.mode == 'LAND':
-            self.vehicle.mode = VehicleMode("GUIDED")
-            while not self.vehicle.mode.name == "GUIDED":
-                print("Waiting for mode change to GUIDED...")
-                time.sleep(1)
-            print("Mode changed to GUIDED.")
+        self.restart_radler_code()  
+                     
+        self.vehicle.mode = VehicleMode("STABILIZE")
+        while self.vehicle.mode != 'STABILIZE':
+            print(" Waiting for stabilize mode...")
+            time.sleep(1)            
             
-            self.wait_for_disarm()
-                
-            self.vehicle.mode = VehicleMode("STABILIZE")
-            while self.vehicle.mode != 'STABILIZE':
-                print(" Waiting for stabilize mode...")
-                time.sleep(1)            
-        else:
-            # After a flight (successful mission flight or guided/landed flight), 
-            # the RTL mode would have been commanded and will end up in "DISARMED"
-            # Set back to "STABILIZE" to be prepared for the next flight.
-            self.wait_for_disarm()
-                
-            self.vehicle.mode = VehicleMode("STABILIZE")
-            while self.vehicle.mode != 'STABILIZE':
-                print(" Waiting for stabilize mode...")
-                time.sleep(1)
-            
-            print("Vehicle is now in STABILIZE mode.")
+        print("Vehicle is now in STABILIZE mode.")
+        # delay while the Radler functions restart
+        time.sleep(10)    
         
     def reboot_autopilot(self):
         # Disable the geofence

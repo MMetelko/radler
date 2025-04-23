@@ -322,7 +322,7 @@ ENV DISPLAY=:0.0 \
 COPY ardupilot_entrypoint.sh /ardupilot_entrypoint.sh
 RUN sudo chown ${USER_NAME}:${USER_NAME} /ardupilot_entrypoint.sh
 
-EXPOSE 8090 8501 14550 14551
+EXPOSE 8501
 
 # Build the ardupilot SITL simulator
 # Finish pulling the ardupilot repository
