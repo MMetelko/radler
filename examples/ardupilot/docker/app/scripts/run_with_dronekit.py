@@ -248,17 +248,24 @@ class DroneController:
             cmds.download()
             cmds.wait_ready()
             
-            if len(cmds) == len(uploaded_mission):
-                for i in range(len(uploaded_mission)):
-                    if cmds[i].x != uploaded_mission[i].x or \
-                    cmds[i].y != uploaded_mission[i].y or \
-                    cmds[i].z != uploaded_mission[i].z:
-                        print("Mission verification failed: mismatch at waypoint", i)
+            # Don't count the home waypoint (first uploaded value)
+            num_uploaded_wp = len(uploaded_mission) - 1
+            num_cmds_wp = len(cmds)
+            # Value chosen based on GPS used by Ardupilot
+            epsilon = 1e-3
+            if num_cmds_wp == num_uploaded_wp:
+                for i in range(num_uploaded_wp):
+                    if abs(round(cmds[i].x, 3) - round(uploaded_mission[i + 1].x, 3)) > epsilon or \
+                        abs(round(cmds[i].y, 3) - round(uploaded_mission[i + 1].y, 3)) > epsilon or \
+                        abs(round(cmds[i].z, 3) - round(uploaded_mission[i + 1].z, 3)) > epsilon:
+                        print(f"Mission verification failed: mismatch at waypoint {i}")
+                        print(f"Uploaded coordinates (x,y,z): {uploaded_mission[i + 1].x}, {uploaded_mission[i + 1].y}, {uploaded_mission[i + 1].z}")
+                        print(f"Cmds coordinates (x,y,z): {cmds[i].x}, {cmds[i].y}, {cmds[i].z}")
                         return False
                 print("Mission verified successfully")
                 return True
             else:
-                print("Mission verification failed: waypoint count mismatch")
+                print(f"Mission verification failed: waypoint count mismatch.  Uploaded = {num_uploaded_wp}, Found = {num_cmds_wp}")
                 return False        
      
         except Exception as e:
