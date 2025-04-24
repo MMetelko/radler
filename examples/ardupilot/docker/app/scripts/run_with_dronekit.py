@@ -201,9 +201,11 @@ class DroneController:
     def load_mission_waypoints(self):
         try:
             mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
-
+            uploaded_mission = []
+            
             cmds = self.vehicle.commands
             cmds.clear()
+            cmds.upload()
             
             # Read waypoints from file
             with open(mission_waypoint_file_path, 'r') as f:
@@ -232,6 +234,7 @@ class DroneController:
                                     param1, param2, param3, param4,
                                     x, y, z)
                         cmds.add(cmd)
+                        uploaded_mission.append(cmd)
                         
             cmds.upload()
             # Note: The following warning appears on the console, but it does show "Flight plan received"
@@ -239,7 +242,25 @@ class DroneController:
             #    AP: got MISSION_ITEM; GCS should send MISSION_ITEM_INT
             #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
             #    AP: Flight plan received
-            print(f"Mission uploaded: {cmds.count} waypoints")      
+            print(f"Mission uploaded: {cmds.count} waypoints") 
+            
+            time.sleep(2)
+            cmds.download()
+            cmds.wait_ready()
+            
+            if len(cmds) == len(uploaded_mission):
+                for i in range(len(uploaded_mission)):
+                    if cmds[i].x != uploaded_mission[i].x or \
+                    cmds[i].y != uploaded_mission[i].y or \
+                    cmds[i].z != uploaded_mission[i].z:
+                        print("Mission verification failed: mismatch at waypoint", i)
+                        return False
+                print("Mission verified successfully")
+                return True
+            else:
+                print("Mission verification failed: waypoint count mismatch")
+                return False        
+     
         except Exception as e:
             print(f"Unexpected mission error: {str(e)}")
 
@@ -535,9 +556,12 @@ def main():
             if args.useWaypoints:
                 print(f"Running simulation with Mission Waypoints. Takeoff altitude: {args.altitude} meters")
                 #controller.load_sim_params()
-                controller.load_mission_waypoints()
-                controller.load_geofence()
-                controller.run_sim(altitude=args.altitude, use_waypoints=True)
+                waypoint_status = controller.load_mission_waypoints()
+                if waypoint_status:
+                    controller.load_geofence()
+                    controller.run_sim(altitude=args.altitude, use_waypoints=True)
+                else:
+                    print(f"ABORTED MISSION! ")
             else:
                 print(f"Running simulation with Vertical: {args.vertMovement}, Horizontal: {args.hortMovement}, Altitude: {args.altitude} (in meters) ")
                 controller.run_sim(vertMovement=args.vertMovement, hortMovement=args.hortMovement, altitude=args.altitude)
