@@ -38,9 +38,13 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
         mavlink_message_t mmsg;
 
+        // Clear screen
+        cout << "\033[2J\033[1;1H";
+        cout << "AFS Gateway at " << formatTimestamp(current_time) << endl;
+
         if (this->battery_status_mailbox) {
             o->battery_status->remaining_percentage = (this->battery_status_mailbox->percentage * 100.0); // [0.0,1.0] to [0.0, 100.0]
-            cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+            cout //<< "AFS Gateway at (" << formatTimestamp(current_time) << ") "
                     << "battery remaining: " << o->battery_status->remaining_percentage << "% "
                     //<< "with status message at (" << formatTimestamp(this->battery_status_mailbox->header.stamp) << ") "
                     << endl;
@@ -61,7 +65,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
             cout << RED << "DEBUGGING ONLY: Breach Mitigation (none/velocity limiting/position limiting/landing/return to launch): " << (int) this->geofence_status_mailbox.breach_mitigation << RESET << endl;
 
             // Simplified output
-            cout << RED << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+            cout << RED //<< "AFS Gateway at (" << formatTimestamp(current_time) << ") "
                    << "Geofence Breach: Status = " << breach_status[o->geofence_status->breach_status] << "\n"
                    << "  # Breaches = " << (int) o->geofence_status->breach_count
                  << ", Breach Type = " << breach_types[o->geofence_status->breach_type] << "\n"
@@ -79,12 +83,12 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
             o->gps_status->fix_type = this->gps_status_mailbox->fix_type;
             o->gps_status->satellites_visible = this->gps_status_mailbox->satellites_visible;
             if ((o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_GPS)) || (o->gps_status->fix_type == static_cast<uint8_t>(GPS_FIX_TYPE_NO_FIX))){
-                cout << RED << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+                cout << RED //<< "AFS Gateway at (" << formatTimestamp(current_time) << ") "
                         << "GPS FIX LOSS with visible satellites: " << (int) o->gps_status->satellites_visible  << " " << RESET
                         //<< "with status message at (" << formatTimestamp(this->gps_status_mailbox->header.stamp) << ") "
                         << endl;
             } else {
-                cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+                cout //<< "AFS Gateway at (" << formatTimestamp(current_time) << ") "
                         << "GPS fine/normal with visible satellites: " << (int) o->gps_status->satellites_visible  << " "
                         //<< "with status message at (" << formatTimestamp(this->gps_status_mailbox->header.stamp) << ") "
                         << endl;
@@ -97,11 +101,11 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
         radl_turn_off(radl_TIMEOUT, &o_f->gps_status);
 
         if (this->autopilotstate_status_mailbox) {
-            cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-                    << "Autopilot Mode: " << this->autopilotstate_status_mailbox->mode << "\n"
-                    << "Vehicle Status (connected,armed,guided,manual_input,system_status): " << "(" << (int)this->autopilotstate_status_mailbox->connected 
-                    << "," << (int)this->autopilotstate_status_mailbox->armed << "," << (int)this->autopilotstate_status_mailbox->guided
-                    << "," << (int)this->autopilotstate_status_mailbox->manual_input << "," << (int)this->autopilotstate_status_mailbox->system_status << ") "
+            cout //<< "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+                    << "Autopilot Mode: " << this->autopilotstate_status_mailbox->mode
+                    //<< "Vehicle Status (connected,armed,guided,manual_input,system_status): " << "(" << (int)this->autopilotstate_status_mailbox->connected 
+                    //<< "," << (int)this->autopilotstate_status_mailbox->armed << "," << (int)this->autopilotstate_status_mailbox->guided
+                    //<< "," << (int)this->autopilotstate_status_mailbox->manual_input << "," << (int)this->autopilotstate_status_mailbox->system_status << ") "
                     //<< "with status message at (" << formatTimestamp(this->autopilotstate_status_mailbox->header.stamp) << ") "
                     << endl;
         } else {
@@ -110,12 +114,12 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
         if (this->missionwaypoints_status_mailbox) {
             int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
-            cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-                    << "Current Waypoint (seq/total,x_lat,y_long,z_alt): " << "("
+            cout //<< "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+                    << "Current Waypoint (seq/total,x_lat,y_long,z_alt): " //<< "("
                     << seq << "/" << (((int) *RADL_THIS->max_number_mission_waypoints) - 1) << ","
                     << (double) this->missionwaypoints_status_mailbox->waypoints[seq].x_lat << ","
                     << (double) this->missionwaypoints_status_mailbox->waypoints[seq].y_long << ","
-                    << (double) this->missionwaypoints_status_mailbox->waypoints[seq].z_alt << ")"
+                    << (double) this->missionwaypoints_status_mailbox->waypoints[seq].z_alt //<< ")"
                     << endl;
         }
         else {
@@ -124,12 +128,12 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
         if (this->global_position_status_available) {
             try {
-                cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
-                        << "Global Navigation Position (x_lat,y_long,z_alt,z_alt_relative): " << "("
+                cout //<< "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+                        << "Global Navigation Position (x_lat,y_long,z_alt,z_alt_relative): " //<< "("
                         << (double) this->globalposition_status_mailbox.lat * 1e-7 << ","
                         << (double) this->globalposition_status_mailbox.lon * 1e-7 << ","
                         << (double) this->globalposition_status_mailbox.alt * 1e-3 << ","
-                        << (double) this->globalposition_status_mailbox.relative_alt * 1e-3 << ") "
+                        << (double) this->globalposition_status_mailbox.relative_alt * 1e-3 //<< ") "
                         //<< "with status message at (" << formatTimestamp(this->global_position_timestamp) << ") "
                         << endl;
                 this->global_position_status_available = false;
@@ -183,7 +187,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                     current_heartbeat_loss_duration += elapsed_diagnostics_status_duration;
                 }
 
-                cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") "
+                cout //<< "AFS Gateway at (" << formatTimestamp(current_time) << ") "
                         << "Diagnostic Status (name,heartbeat_key,heartbeat_value,prev_heartbeat_value,elapsed(s),loss_duration(s)): " << "("
                         << this->diagnostics_status_mailbox->status[2].name << ","
                         << this->diagnostics_status_mailbox->status[2].values[0].key << ","
@@ -204,7 +208,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
         //ignore staleness check as might have repeated send command to autopilot on failure
         //if (!radl_is_stale(i_f->copter_command) && !radl_is_timeout(i_f->copter_command)) {
         if (!radl_is_timeout(i_f->copter_command)) {
-            cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") ";
+            //cout << "AFS Gateway at (" << formatTimestamp(current_time) << ") ";
             if (i->copter_command->cmd_id == 0) {
                 cout << "Copter Command: None" << endl;
             } else if (i->copter_command->cmd_id == 1) {

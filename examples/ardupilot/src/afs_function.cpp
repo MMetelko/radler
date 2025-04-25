@@ -66,7 +66,9 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 		}
 	}
 
-	cout << "AFS Function at (" << formatTimestamp(current_time) << ") "
+    // Clear screen
+    cout << "\033[2J\033[1;1H";
+	cout << "AFS Function at " << formatTimestamp(current_time) << "\n"
 		 << "Remaining Battery: " << battery_remaining_percentage 
 		 << ", AFS State: " << afs_state << "\n"
 		 << "GPS Fix State: " << gps_fix_state << ", GPS Loss Count: " << gps_loss_count
