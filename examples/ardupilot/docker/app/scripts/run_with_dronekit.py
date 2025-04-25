@@ -201,9 +201,11 @@ class DroneController:
     def load_mission_waypoints(self):
         try:
             mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
-
+            uploaded_mission = []
+            
             cmds = self.vehicle.commands
             cmds.clear()
+            cmds.upload()
             
             # Read waypoints from file
             with open(mission_waypoint_file_path, 'r') as f:
@@ -232,6 +234,7 @@ class DroneController:
                                     param1, param2, param3, param4,
                                     x, y, z)
                         cmds.add(cmd)
+                        uploaded_mission.append(cmd)
                         
             cmds.upload()
             # Note: The following warning appears on the console, but it does show "Flight plan received"
@@ -239,7 +242,32 @@ class DroneController:
             #    AP: got MISSION_ITEM; GCS should send MISSION_ITEM_INT
             #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
             #    AP: Flight plan received
-            print(f"Mission uploaded: {cmds.count} waypoints")      
+            print(f"Mission uploaded: {cmds.count} waypoints") 
+            
+            time.sleep(2)
+            cmds.download()
+            cmds.wait_ready()
+            
+            # Don't count the home waypoint (first uploaded value)
+            num_uploaded_wp = len(uploaded_mission) - 1
+            num_cmds_wp = len(cmds)
+            # Value chosen based on GPS used by Ardupilot
+            epsilon = 1e-3
+            if num_cmds_wp == num_uploaded_wp:
+                for i in range(num_uploaded_wp):
+                    if abs(round(cmds[i].x, 3) - round(uploaded_mission[i + 1].x, 3)) > epsilon or \
+                        abs(round(cmds[i].y, 3) - round(uploaded_mission[i + 1].y, 3)) > epsilon or \
+                        abs(round(cmds[i].z, 3) - round(uploaded_mission[i + 1].z, 3)) > epsilon:
+                        print(f"Mission verification failed: mismatch at waypoint {i}")
+                        print(f"Uploaded coordinates (x,y,z): {uploaded_mission[i + 1].x}, {uploaded_mission[i + 1].y}, {uploaded_mission[i + 1].z}")
+                        print(f"Cmds coordinates (x,y,z): {cmds[i].x}, {cmds[i].y}, {cmds[i].z}")
+                        return False
+                print("Mission verified successfully")
+                return True
+            else:
+                print(f"Mission verification failed: waypoint count mismatch.  Uploaded = {num_uploaded_wp}, Found = {num_cmds_wp}")
+                return False        
+     
         except Exception as e:
             print(f"Unexpected mission error: {str(e)}")
 
@@ -278,7 +306,7 @@ class DroneController:
 
             # First setup the desired parameters
             fence_params = {
-                'FENCE_ACTION': 0,
+                'FENCE_ACTION': 2,  # report only
                 'FENCE_ALT_MAX': 150.0,
                 'FENCE_RADIUS': 500.0,
                 'FENCE_OPTIONS': 1,
@@ -535,9 +563,12 @@ def main():
             if args.useWaypoints:
                 print(f"Running simulation with Mission Waypoints. Takeoff altitude: {args.altitude} meters")
                 #controller.load_sim_params()
-                controller.load_mission_waypoints()
-                controller.load_geofence()
-                controller.run_sim(altitude=args.altitude, use_waypoints=True)
+                waypoint_status = controller.load_mission_waypoints()
+                if waypoint_status:
+                    controller.load_geofence()
+                    controller.run_sim(altitude=args.altitude, use_waypoints=True)
+                else:
+                    print(f"ABORTED MISSION! ")
             else:
                 print(f"Running simulation with Vertical: {args.vertMovement}, Horizontal: {args.hortMovement}, Altitude: {args.altitude} (in meters) ")
                 controller.run_sim(vertMovement=args.vertMovement, hortMovement=args.hortMovement, altitude=args.altitude)

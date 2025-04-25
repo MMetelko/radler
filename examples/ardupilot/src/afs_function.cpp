@@ -1,5 +1,9 @@
 #include "afs_function.h"
 
+const std::string RED = "\033[31m";
+const std::string RESET = "\033[0m";
+
+
 AFS_Function::AFS_Function()
 {
 	node = rclcpp::Node::make_shared("afs_function");
@@ -66,15 +70,17 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 		}
 	}
 
-	cout << "AFS Function at (" << formatTimestamp(current_time) << ") "
-		 << "Remaining Battery: " << battery_remaining_percentage 
-		 << ", AFS State: " << afs_state << "\n"
-		 << "GPS Fix State: " << gps_fix_state << ", GPS Loss Count: " << gps_loss_count
-		 << ", Current GPS Loss Duration: " << current_gps_loss_duration
-		 << ", Previous GPS Loss Time: " << formatTimestamp(previous_gps_loss_time) << "\n"
-		 << "Max Altitude Breach Event: " << max_altitude_breach_event
-		 << ", Current Breach Duration: " << current_max_altitude_breach_duration
-		 << ", Previous Breach Event Time: " << formatTimestamp(previous_max_altitude_breach_time) << "\n";
+    // Clear screen
+    cout << "\033[2J\033[1;1H";
+	cout << "AFS Function at " << formatTimestamp(current_time) << "\n"
+		 << "Remaining Battery: " << battery_remaining_percentage << "%\n"
+		 << "AFS State: " << afs_state << "\n"
+		 << (gps_fix_state == "Lost" ? RED : "") << "GPS Fix State: " << gps_fix_state << ", GPS Loss Count: " << gps_loss_count << "\n"
+		 << "Current GPS Loss Duration: " << current_gps_loss_duration
+		 << ", Previous GPS Loss Time: " << formatTimestamp(previous_gps_loss_time) << "\n" << RESET
+		 << (max_altitude_breach_event == "True" ? RED : "") << "Max Altitude Breach Event: " << max_altitude_breach_event << "\n"
+		 << "Current Breach Duration: " << current_max_altitude_breach_duration
+		 << ", Previous Breach Event Time: " << formatTimestamp(previous_max_altitude_breach_time) << "\n" << RESET;
 
 	radl_turn_on(radl_STALE, &o_f->copter_command);
 	radl_turn_on(radl_STALE, &o_f->gcs_message);
@@ -121,7 +127,7 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 			&& (gps_loss_count < *RADL_THIS->max_GPS_losses_allowed)){
 			o->copter_command->cmd_id = 3;
 			o->gcs_message->msg_id = 0;
-			cout << "Copter Command: Hover at Current Position, GCS Message: Copter transitioned to Hover" << endl;
+			cout << "Copter Command: Hover at Current Position\n  GCS Message: Copter transitioned to Hover" << endl;
 			afs_state = "GPS Loss Hover";
 			radl_turn_off(radl_STALE, &o_f->copter_command);
 			radl_turn_off(radl_STALE, &o_f->gcs_message);

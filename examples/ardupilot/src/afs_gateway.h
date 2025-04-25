@@ -30,49 +30,63 @@ class AFS_Gateway
         AFS_Gateway();
         void step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_t* o, radl_out_flags_t* o_f);
     private:
-    std::shared_ptr<rclcpp::Node> node;
+        // Define a struct to hold all status information
+        struct StatusInfo {
+            std::string battery_status;
+            std::string autopilot_mode;
+            std::string copter_command;
+            std::string current_waypoint;
+            std::string global_position;
+            std::string gps_status;
+            std::string geofence_status;            
+            std::string diagnostics; 
+        };
 
-    rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr mavros_battery_subscriber;
-    sensor_msgs::msg::BatteryState::ConstSharedPtr battery_status_mailbox;
-    void mavros_battery_state_callback(const sensor_msgs::msg::BatteryState::ConstSharedPtr bs);
+        std::shared_ptr<rclcpp::Node> node;
 
-    rclcpp::Subscription<mavros_msgs::msg::Mavlink>::SharedPtr mavlink_from_subscriber;
-    mavlink_fence_status_t geofence_status_mailbox;
-    rclcpp::Time geofence_status_timestamp;
-    bool geofence_status_available;
-    mavlink_global_position_int_t globalposition_status_mailbox;
-    rclcpp::Time global_position_timestamp;
-    bool global_position_status_available;
-    void mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs);
+        rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr mavros_battery_subscriber;
+        sensor_msgs::msg::BatteryState::ConstSharedPtr battery_status_mailbox;
+        void mavros_battery_state_callback(const sensor_msgs::msg::BatteryState::ConstSharedPtr bs);
 
-    rclcpp::Subscription<mavros_msgs::msg::GPSRAW>::SharedPtr mavros_gpsraw_subscriber;
-    mavros_msgs::msg::GPSRAW::ConstSharedPtr gps_status_mailbox;
-    void mavros_gps_status_callback(const mavros_msgs::msg::GPSRAW::ConstSharedPtr gs);
+        rclcpp::Subscription<mavros_msgs::msg::Mavlink>::SharedPtr mavlink_from_subscriber;
+        mavlink_fence_status_t geofence_status_mailbox;
+        rclcpp::Time geofence_status_timestamp;
+        bool geofence_status_available;
 
-    rclcpp::Client<mavros_msgs::srv::SetMode>::SharedPtr flight_controls_mode;
+        mavlink_global_position_int_t globalposition_status_mailbox;
+        rclcpp::Time global_position_timestamp;
+        bool global_position_status_available;
+        void mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs);
 
-    rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr mavros_autopilotstate_subscriber;
-    mavros_msgs::msg::State::ConstSharedPtr autopilotstate_status_mailbox;
-    void mavros_autopilotstate_callback(const mavros_msgs::msg::State::ConstSharedPtr aps);
+        rclcpp::Subscription<mavros_msgs::msg::GPSRAW>::SharedPtr mavros_gpsraw_subscriber;
+        mavros_msgs::msg::GPSRAW::ConstSharedPtr gps_status_mailbox;
+        void mavros_gps_status_callback(const mavros_msgs::msg::GPSRAW::ConstSharedPtr gs);
 
-    rclcpp::Subscription<mavros_msgs::msg::WaypointList>::SharedPtr mavros_missionwaypoints_subscriber;
-    mavros_msgs::msg::WaypointList::ConstSharedPtr missionwaypoints_status_mailbox;
-    void mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::ConstSharedPtr mws);
+        rclcpp::Client<mavros_msgs::srv::SetMode>::SharedPtr flight_controls_mode;
 
-    //rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr mavros_globalposition_subscriber;
-    //sensor_msgs::msg::NavSatFix::ConstSharedPtr globalposition_status_mailbox;
-    //void mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps);
+        rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr mavros_autopilotstate_subscriber;
+        mavros_msgs::msg::State::ConstSharedPtr autopilotstate_status_mailbox;
+        void mavros_autopilotstate_callback(const mavros_msgs::msg::State::ConstSharedPtr aps);
 
-    rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr mavros_diagnostics_subscriber;
-    diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr diagnostics_status_mailbox;
-    void mavros_diagnostics_callback(const diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr das);
-    std::string formatTimestamp(const builtin_interfaces::msg::Time& stamp);
+        rclcpp::Subscription<mavros_msgs::msg::WaypointList>::SharedPtr mavros_missionwaypoints_subscriber;
+        mavros_msgs::msg::WaypointList::ConstSharedPtr missionwaypoints_status_mailbox;
+        void mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::ConstSharedPtr mws);
 
-    rclcpp::Time previous_diagnostics_status_time;
-    int previous_diagnostics_heartbeat_value;
-    int current_diagnostics_heartbeat_value;
-    double elapsed_diagnostics_status_duration;
-    double current_heartbeat_loss_duration;
+        //rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr mavros_globalposition_subscriber;
+        //sensor_msgs::msg::NavSatFix::ConstSharedPtr globalposition_status_mailbox;
+        //void mavros_globalposition_callback(const sensor_msgs::msg::NavSatFix::ConstSharedPtr gps);
 
-    int previous_flight_controls_cmd_id;
+        rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr mavros_diagnostics_subscriber;
+        diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr diagnostics_status_mailbox;
+        void mavros_diagnostics_callback(const diagnostic_msgs::msg::DiagnosticArray::ConstSharedPtr das);
+        std::string formatTimestamp(const builtin_interfaces::msg::Time& stamp);
+
+        rclcpp::Time previous_diagnostics_status_time;
+        int previous_diagnostics_heartbeat_value;
+        int current_diagnostics_heartbeat_value;
+        double elapsed_diagnostics_status_duration;
+        double current_heartbeat_loss_duration;
+
+        int previous_flight_controls_cmd_id;
+        StatusInfo currentStatus;
 };
