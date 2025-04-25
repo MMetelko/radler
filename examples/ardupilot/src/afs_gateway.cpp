@@ -2,11 +2,11 @@
 
 // Highlights Event Actions
 //const std::string RED "\033[0;31m"
-const std::string RED "\033[31m";
-const std::string RESET "\033[0m";
+const std::string RED = "\033[31m";
+const std::string RESET = "\033[0m";
 
 const char* breach_status[] = {"Inside", "Outside"};
-const char* breach_types[] = {"None", "Min Altitude", "Max Altitude", "Fence Boundary"}
+const char* breach_types[] = {"None", "Min Altitude", "Max Altitude", "Fence Boundary"};
 
 
 AFS_Gateway::AFS_Gateway()
@@ -27,7 +27,7 @@ AFS_Gateway::AFS_Gateway()
     geofence_status_available = false;
     global_position_status_available = false;
 
-    currentStatus.battery_percentage = "";
+    currentStatus.battery_status = "";
     currentStatus.autopilot_mode = "";
     currentStatus.copter_command = " ";
     currentStatus.current_waypoint = " ";
@@ -50,7 +50,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
         if (this->battery_status_mailbox) {
             o->battery_status->remaining_percentage = (this->battery_status_mailbox->percentage * 100.0); // [0.0,1.0] to [0.0, 100.0]
-            currentStatus.battery_status = "Battery Remaining: " + std::to_string(o->battery_status->remaining_percentage) + "% \n";
+            currentStatus.battery_status = "Battery Remaining: " + std::to_string((int) o->battery_status->remaining_percentage) + "% \n";
             this->battery_status_mailbox = nullptr;
             radl_turn_off(radl_STALE, &o_f->battery_status);
         } else {
@@ -101,21 +101,22 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
         radl_turn_off(radl_TIMEOUT, &o_f->gps_status);
 
         if (this->autopilotstate_status_mailbox) {
-            currentStatus.autopilot_mode = "Autopilot Mode: " + std::to_string(this->autopilotstate_status_mailbox->mode) + "\n";
+            currentStatus.autopilot_mode = "Autopilot Mode: " + this->autopilotstate_status_mailbox->mode + "\n";
         } else {
-            currentStatus.autopilot_mode = "Autopilot status mailbox is null" + "\n";
+            currentStatus.autopilot_mode = "Autopilot status mailbox is null\n";
         }
 
         if (this->missionwaypoints_status_mailbox) {
             int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
-            currentStatus.current_waypoint = "Current Waypoint (seq/total,x_lat,y_long,z_alt): " 
-                    + seq + "/" + std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + ","
-                    + std::to_string((double) this->missionwaypoints_status_mailbox->waypoints[seq].x_lat) + ","
-                    + to_string((double) this->missionwaypoints_status_mailbox->waypoints[seq].y_long) + ","
-                    + to_string((double) this->missionwaypoints_status_mailbox->waypoints[seq].z_alt) + "\n";
+            currentStatus.current_waypoint = "Current Waypoint " +
+                    std::to_string(seq) + "/" + 
+                    std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
+                    std::to_string((double) this->missionwaypoints_status_mailbox->waypoints[seq].x_lat) + "," +
+                    std::to_string((double) this->missionwaypoints_status_mailbox->waypoints[seq].y_long) + "," +
+                    std::to_string((double) this->missionwaypoints_status_mailbox->waypoints[seq].z_alt) + "(lat,long,alt)\n";
         }
         else {
-            currentStatus.current_waypoint = "Mission Way Points status mailbox is null" + "\n";
+            currentStatus.current_waypoint = "Mission Way Points status mailbox is null\n";
         }
 
         if (this->global_position_status_available) {
@@ -174,16 +175,18 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                     current_heartbeat_loss_duration += elapsed_diagnostics_status_duration;
                 }
 
-                currentStatus.diagnostics += "Diagnostic Status (name,heartbeat_key,heartbeat_value,prev_heartbeat_value,elapsed(s),loss_duration(s)): ("
-                        + std::to_string(this->diagnostics_status_mailbox->status[2].name) + ","
-                        + std::to_string(this->diagnostics_status_mailbox->status[2].values[0].key) + ","
-                        + std::to_string(current_diagnostics_heartbeat_value)  + "," + std::to_string(previous_diagnostics_heartbeat_value) + ","
-                        + std::to_string(elapsed_diagnostics_status_duration) + "," + std::to_string(current_heartbeat_loss_duration) + ") \n";
+                currentStatus.diagnostics += "Diagnostic Status (name,heartbeat_key,heartbeat_value,prev_heartbeat_value,elapsed(s),loss_duration(s)): (" +
+                        this->diagnostics_status_mailbox->status[2].name + "," +
+                        this->diagnostics_status_mailbox->status[2].values[0].key + "," +
+                        std::to_string(current_diagnostics_heartbeat_value)  + "," + 
+                        std::to_string(previous_diagnostics_heartbeat_value) + "," +
+                        std::to_string(elapsed_diagnostics_status_duration) + "," + 
+                        std::to_string(current_heartbeat_loss_duration) + ") \n";
                 previous_diagnostics_status_time = this->diagnostics_status_mailbox->header.stamp;
                 previous_diagnostics_heartbeat_value = std::stoi(this->diagnostics_status_mailbox->status[2].values[0].value);
                 this->diagnostics_status_mailbox = nullptr;
             } catch (const std::exception& e) {
-                currentStatus.diagnostics += "Exception in diagnostics processing: " + std::to_string(e.what()) + "\n";
+                currentStatus.diagnostics += "Exception in diagnostics processing: " + std::string(e.what()) + "\n";
             }
         } else {
             currentStatus.diagnostics = "Diagnostics status mailbox is null\n";
@@ -248,8 +251,8 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
         
         cout << "\033[2J\033[1;1H";  // Clear screen
         cout << "AFS Gateway Status at " << formatTimestamp(current_time) << "\n"
-                << "-----------------------------------\n"
-                << currentStatus.battery_percentage 
+                << "-----------------------------------------\n"
+                << currentStatus.battery_status 
                 << currentStatus.autopilot_mode
                 << currentStatus.copter_command
                 << currentStatus.current_waypoint
