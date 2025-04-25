@@ -75,10 +75,10 @@ void AFS_Function::step(const radl_in_t * i, const radl_in_flags_t* i_f, radl_ou
 	cout << "AFS Function at " << formatTimestamp(current_time) << "\n"
 		 << "Remaining Battery: " << battery_remaining_percentage << "%\n"
 		 << "AFS State: " << afs_state << "\n"
-		 << "GPS Fix State: " << (gps_fix_state == "Lost" ? RED : "") << gps_fix_state << ", GPS Loss Count: " << gps_loss_count << "\n"
+		 << (gps_fix_state == "Lost" ? RED : "") << "GPS Fix State: " << gps_fix_state << ", GPS Loss Count: " << gps_loss_count << "\n"
 		 << "Current GPS Loss Duration: " << current_gps_loss_duration
 		 << ", Previous GPS Loss Time: " << formatTimestamp(previous_gps_loss_time) << "\n" << RESET
-		 << "Max Altitude Breach Event: " << (max_altitude_breach_event == "True" ? RED : "") << max_altitude_breach_event << "\n"
+		 << (max_altitude_breach_event == "True" ? RED : "") << "Max Altitude Breach Event: " << max_altitude_breach_event << "\n"
 		 << "Current Breach Duration: " << current_max_altitude_breach_duration
 		 << ", Previous Breach Event Time: " << formatTimestamp(previous_max_altitude_breach_time) << "\n" << RESET;
 
