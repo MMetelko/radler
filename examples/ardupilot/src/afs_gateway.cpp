@@ -278,10 +278,11 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
         //if (msg->msgid == 33)
         if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
         {
+            cout << "Found msgid = 33 (GPS location message), now to decode..." << endl;
             size_t gp_payload_size = MAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN;
             if (msg->payload64.size() == gp_payload_size)
             {
-                //cout << "Found Global Position MAVLink message..." << endl;
+                cout << "Found Global Position MAVLink message..." << endl;
                 mavlink_message_t mavlink_gp_msg;
                 mavlink_gp_msg.msgid = msg->msgid;
                 mavlink_gp_msg.sysid = msg->sysid;
@@ -289,11 +290,13 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
 
                 const uint64_t* gp_data_ptr = &msg->payload64[0];
                 memcpy(mavlink_gp_msg.payload64, gp_data_ptr, gp_payload_size);
+                cout << "Global Position MAVLink message copied..." << endl;
                 // for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_gp_msg.payload64)/sizeof(mavlink_gp_msg.payload64[0]); ++i) {
                 //     mavlink_gp_msg.payload64[i] = msg->payload64[i];
                 // }
                 
                 mavlink_msg_global_position_int_decode(&mavlink_gp_msg, &this->globalposition_status_mailbox);
+                cout << "Global Position MAVLink message decoded..." << endl;
                 this->global_position_status_available = true;
                 this->global_position_timestamp = this->node->now();    
             }
@@ -301,10 +304,11 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
         //else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
         else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
         {
+            cout << "Found msgid = 162 (Fence Breach message), now to decode..." << endl;
             size_t fs_payload_size = MAVLINK_MSG_ID_FENCE_STATUS_LEN;
             if (msg->payload64.size() == fs_payload_size)
             {
-                //cout << "Found Fence Status MAVLink message..." << endl;
+                cout << "Found Fence Status MAVLink message..." << endl;
                 mavlink_message_t mavlink_fs_msg;
                 mavlink_fs_msg.msgid = msg->msgid;
                 mavlink_fs_msg.sysid = msg->sysid;
@@ -312,11 +316,13 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
 
                 const uint64_t* fs_data_ptr = &msg->payload64[0];
                 memcpy(mavlink_fs_msg.payload64, fs_data_ptr, fs_payload_size);
+                cout << "Fence Status MAVLink message copied..." << endl;
                 // for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_fs_msg.payload64)/sizeof(mavlink_fs_msg.payload64[0]); ++i) {
                 //     mavlink_fs_msg.payload64[i] = msg->payload64[i];
                 // }
     
                 mavlink_msg_fence_status_decode(&mavlink_fs_msg, &this->geofence_status_mailbox);
+                cout << "Fence Status MAVLink message decoded..." << endl;
                 this->geofence_status_available = true;
                 this->geofence_status_timestamp = this->node->now();    
             }
