@@ -35,6 +35,9 @@ AFS_Gateway::AFS_Gateway()
     currentStatus.gps_status = "";
     currentStatus.geofence_status = "";
     currentStatus.diagnostics = "";
+    currentStatus.debug_data.mavlink_gps_info = "";
+    currentStatus.debug_data.mavlink_fs_info = "";
+    currentStatus.debug_data.error_msgs = "";
 }
 
 void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_t* o, radl_out_flags_t* o_f)
@@ -65,13 +68,14 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
             o->geofence_status->breach_time = this->geofence_status_mailbox.breach_time;
 
             // MM TODO: for debugging only
-            cout << RED << "DEBUGGING ONLY: Breach Mitigation (none/velocity limiting/position limiting/landing/return to launch): " << (int) this->geofence_status_mailbox.breach_mitigation << RESET << endl;
+            //cout << RED << "DEBUGGING ONLY: Breach Mitigation (none/velocity limiting/position limiting/landing/return to launch): " << (int) this->geofence_status_mailbox.breach_mitigation << RESET << endl;
 
             std::string color = (this->geofence_status_mailbox.breach_status == 1) ? RED : "";
             currentStatus.geofence_status = color + "Geofence Breach: Status = " + std::string(breach_status[o->geofence_status->breach_status]) + 
                                             "\n  # Breaches = " + std::to_string(o->geofence_status->breach_count) +
                                             ", Breach Type = " + std::string(breach_types[this->geofence_status_mailbox.breach_type]) +
                                             "\n, Breach Time = " + std::to_string(o->geofence_status->breach_time) + "ms (since boot of last breach)" + RESET + "\n";
+            currentStatus.debug_data.mavlink_fs_info += "Fence Breach reached mailbox... ";
 
             this->geofence_status_available = false;
             radl_turn_off(radl_STALE, &o_f->geofence_status);
@@ -121,6 +125,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
         if (this->global_position_status_available) {
             try {
+                currentStatus.debug_data.mavlink_gps_info += "Global Navigation Poition reached mailbox... ";
                 currentStatus.global_position = "Global Navigation Position (x_lat,y_long,z_alt,z_alt_relative): " 
                         + to_string((double) this->globalposition_status_mailbox.lat * 1e-7) + ","
                         + to_string((double) this->globalposition_status_mailbox.lon * 1e-7) + ","
@@ -258,12 +263,16 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 << currentStatus.current_waypoint
                 << currentStatus.global_position
                 << currentStatus.gps_status             
-                << currentStatus.geofence_status;
+                << currentStatus.geofence_status
+                << "..........................................\n"
+                << currentStatus.debug_data.mavlink_gps_info
+                << currentStatus.debug_data.mavlink_fs_info
+                << currentStatus.debug_data.error_msgs;
         
     } catch (const std::exception& e) {
-        cout << "Exception in step function: " << e.what() << endl;
+        currentStatus.debug_data.error_msgs += "Exception in step function: " + e.what() + "/n";
     } catch (...) {
-        cout << "Unknown exception in step function" << endl;
+        currentStatus.debug_data.error_msgs += "Unknown exception in step function/n";
     }
 }
 
@@ -278,11 +287,11 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
         //if (msg->msgid == 33)
         if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
         {
-            cout << "Found msgid = 33 (GPS location message), now to decode..." << endl;
+            currentStatus.debug_data.mavlink_gps_info += "Found msgid = 33 (GPS location message), now to decode.../n";
             size_t gp_payload_size = MAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN;
             if (msg->payload64.size() == gp_payload_size)
             {
-                cout << "Found Global Position MAVLink message..." << endl;
+                currentStatus.debug_data.mavlink_gps_info += "Found Global Position MAVLink message.../n";
                 mavlink_message_t mavlink_gp_msg;
                 mavlink_gp_msg.msgid = msg->msgid;
                 mavlink_gp_msg.sysid = msg->sysid;
@@ -290,13 +299,13 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
 
                 const uint64_t* gp_data_ptr = &msg->payload64[0];
                 memcpy(mavlink_gp_msg.payload64, gp_data_ptr, gp_payload_size);
-                cout << "Global Position MAVLink message copied..." << endl;
+                currentStatus.debug_data.mavlink_gps_info += "Global Position MAVLink message copied.../n";
                 // for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_gp_msg.payload64)/sizeof(mavlink_gp_msg.payload64[0]); ++i) {
                 //     mavlink_gp_msg.payload64[i] = msg->payload64[i];
                 // }
                 
                 mavlink_msg_global_position_int_decode(&mavlink_gp_msg, &this->globalposition_status_mailbox);
-                cout << "Global Position MAVLink message decoded..." << endl;
+                currentStatus.debug_data.mavlink_gps_info += "Global Position MAVLink message decoded.../n";
                 this->global_position_status_available = true;
                 this->global_position_timestamp = this->node->now();    
             }
@@ -304,11 +313,11 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
         //else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
         else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
         {
-            cout << "Found msgid = 162 (Fence Breach message), now to decode..." << endl;
+            currentStatus.debug_data.mavlink_fs_info += "Found msgid = 162 (Fence Breach message), now to decode.../n";
             size_t fs_payload_size = MAVLINK_MSG_ID_FENCE_STATUS_LEN;
             if (msg->payload64.size() == fs_payload_size)
             {
-                cout << "Found Fence Status MAVLink message..." << endl;
+                currentStatus.debug_data.mavlink_fs_info += "Found Fence Status MAVLink message.../n";
                 mavlink_message_t mavlink_fs_msg;
                 mavlink_fs_msg.msgid = msg->msgid;
                 mavlink_fs_msg.sysid = msg->sysid;
@@ -316,23 +325,23 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
 
                 const uint64_t* fs_data_ptr = &msg->payload64[0];
                 memcpy(mavlink_fs_msg.payload64, fs_data_ptr, fs_payload_size);
-                cout << "Fence Status MAVLink message copied..." << endl;
+                currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message copied.../n";
                 // for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_fs_msg.payload64)/sizeof(mavlink_fs_msg.payload64[0]); ++i) {
                 //     mavlink_fs_msg.payload64[i] = msg->payload64[i];
                 // }
     
                 mavlink_msg_fence_status_decode(&mavlink_fs_msg, &this->geofence_status_mailbox);
-                cout << "Fence Status MAVLink message decoded..." << endl;
+                currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message decoded.../n";
                 this->geofence_status_available = true;
                 this->geofence_status_timestamp = this->node->now();    
             }
         }
     } catch (const std::runtime_error& e) {
-        cout << "Runtime error in MAVLink callback: " << e.what() << endl;
+        currentStatus.debug_data.error_msgs += "Runtime error in MAVLink callback: " + e.what() + "/n";
     } catch (const std::invalid_argument& e) {
-        cout << "Invalid argument in MAVLink callback: " << e.what() << endl;
+        currentStatus.debug_data.error_msgs += "Invalid argument in MAVLink callback: " + e.what() + "/n";
     } catch (...) {
-        cout << "Unknown exception in MAVLink callback function" << endl;
+        currentStatus.debug_data.error_msgs += "Unknown exception in MAVLink callback function/n";
     }
 }
 
