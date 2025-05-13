@@ -284,8 +284,8 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
     try{
-        //if (msg->msgid == 33)
-        if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
+        if (msg->msgid == 33)
+        //if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
         {
             currentStatus.debug_data.mavlink_gps_info += "Found msgid = 33 (GPS location message), now to decode.../n";
             size_t gp_payload_size = MAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN;
@@ -310,8 +310,8 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
                 this->global_position_timestamp = this->node->now();    
             }
         }
-        //else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
-        else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
+        else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
+        //else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
         {
             currentStatus.debug_data.mavlink_fs_info += "Found msgid = 162 (Fence Breach message), now to decode.../n";
             size_t fs_payload_size = MAVLINK_MSG_ID_FENCE_STATUS_LEN;
