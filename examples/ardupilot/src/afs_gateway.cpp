@@ -284,7 +284,7 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
     try{
-        currentStatus.debug_data.error_msgs += "Made it to mavlink_callback... msgid = " + msg->msgid + "/n";
+        currentStatus.debug_data.error_msgs += "Made it to mavlink_callback... msgid = " + std::to_string(msg->msgid) + "/n";
         if (msg->msgid == 33)
         //if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
         {
