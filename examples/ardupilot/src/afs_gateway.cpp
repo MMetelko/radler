@@ -133,9 +133,9 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                         + to_string((double) this->globalposition_status_mailbox.relative_alt * 1e-3) + "\n";
                 this->global_position_status_available = false;
             } catch (const std::exception& e) {
-                cout << "Exception in global position status check: " << e.what() << endl;
+                currentStatus.debug_data.error_msgs += std::string("Exception in global position status check: ") + e.what() + "/n";
             } catch (...) {
-                cout << "Unknown exception in global position status check" << endl;
+                currentStatus.debug_data.error_msgs += "Unknown exception in global position status check/n";
             }
         } 
 
@@ -270,7 +270,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 << currentStatus.debug_data.error_msgs;
         
     } catch (const std::exception& e) {
-        currentStatus.debug_data.error_msgs += "Exception in step function: " + e.what() + "/n";
+        currentStatus.debug_data.error_msgs += std::string("Exception in step function: ") + e.what() + "/n";
     } catch (...) {
         currentStatus.debug_data.error_msgs += "Unknown exception in step function/n";
     }
@@ -337,9 +337,9 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
             }
         }
     } catch (const std::runtime_error& e) {
-        currentStatus.debug_data.error_msgs += "Runtime error in MAVLink callback: " + e.what() + "/n";
+        currentStatus.debug_data.error_msgs += std::string("Runtime error in MAVLink callback: ") + e.what() + "/n";
     } catch (const std::invalid_argument& e) {
-        currentStatus.debug_data.error_msgs += "Invalid argument in MAVLink callback: " + e.what() + "/n";
+        currentStatus.debug_data.error_msgs += std::string("Invalid argument in MAVLink callback: ") + e.what() + "/n";
     } catch (...) {
         currentStatus.debug_data.error_msgs += "Unknown exception in MAVLink callback function/n";
     }
