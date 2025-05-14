@@ -270,7 +270,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 << currentStatus.geofence_status
                 << "..........................................\n"
                 << "Diagnostics: "
-                << currentStatus.diagnostics;
+                << currentStatus.diagnostics
                 << "..........................................\n"
                 //<< "GPS Info: "
                 //<< currentStatus.debug_data.mavlink_gps_info
