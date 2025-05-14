@@ -1,6 +1,7 @@
 #!/bin/bash
 set -ex
 
+USER_HOME="/home/ardupilot"
 LOCK_FILE="/tmp/ardupilot_initialized.lock"
 
 # Check if the lock file exists
@@ -21,6 +22,20 @@ if [ ! -f "$LOCK_FILE" ]; then
       rm -f /app-novnc/conf.d/xterm.conf
       ;;
   esac
+
+  # Generate the CycloneDDS config with the runtime IP
+  echo "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>
+  <CycloneDDS xmlns=\"https://cdds.io/config\">
+  <Domain id=\"any\">
+    <General>
+    <NetworkInterfaceAddress>${ARDUPILOT_RUN_HOST}</NetworkInterfaceAddress>
+    </General>
+  </Domain>
+  </CycloneDDS>" > ${USER_HOME}/cyclonedds.xml
+
+  # Set the environment variable
+  export CYCLONEDDS_URI=file://${USER_HOME}/cyclonedds.xml
+  export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
   # setup ardupilot environment
   source ~/.ardupilot_env
