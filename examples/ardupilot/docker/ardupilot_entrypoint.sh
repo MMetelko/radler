@@ -36,6 +36,7 @@ if [ ! -f "$LOCK_FILE" ]; then
   # Set the environment variable
   export CYCLONEDDS_URI=file://${USER_HOME}/cyclonedds.xml
   export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+  export ROS_DOMAIN_ID=0
 
   # setup ardupilot environment
   source ~/.ardupilot_env
