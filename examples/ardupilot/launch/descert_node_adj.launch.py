@@ -29,10 +29,10 @@ def generate_launch_description():
         launch.substitutions.LaunchConfiguration('plugin_sys_status_yaml'),
         launch.substitutions.LaunchConfiguration('plugin_imu_yaml'),
         launch.substitutions.LaunchConfiguration('plugin_cmd_yaml'),
-        launch.substitutions.LaunchConfiguration('plugin_battery_yaml'),
-        launch.substitutions.LaunchConfiguration('plugin_gps_yaml'),
-        launch.substitutions.LaunchConfiguration('plugin_waypoint_yaml'),
-        launch.substitutions.LaunchConfiguration('plugin_diagnostics_yaml'),
+        #launch.substitutions.LaunchConfiguration('plugin_battery_yaml'),
+        #launch.substitutions.LaunchConfiguration('plugin_gps_yaml'),
+        #launch.substitutions.LaunchConfiguration('plugin_waypoint_yaml'),
+        #launch.substitutions.LaunchConfiguration('plugin_diagnostics_yaml'),
         launch.substitutions.LaunchConfiguration('config_yaml'),
         launch.substitutions.LaunchConfiguration('global_position_config_yaml'),
         launch.substitutions.LaunchConfiguration('setpoint_position_config_yaml'),
@@ -40,10 +40,10 @@ def generate_launch_description():
         launch.substitutions.LaunchConfiguration('sys_status_config_yaml'),
         launch.substitutions.LaunchConfiguration('imu_config_yaml'),
         launch.substitutions.LaunchConfiguration('cmd_config_yaml'),
-        launch.substitutions.LaunchConfiguration('battery_config_yaml'),
-        launch.substitutions.LaunchConfiguration('gps_config_yaml'),
-        launch.substitutions.LaunchConfiguration('waypoint_config_yaml'),
-        launch.substitutions.LaunchConfiguration('diagnostics_config_yaml')
+        #launch.substitutions.LaunchConfiguration('battery_config_yaml'),
+        #launch.substitutions.LaunchConfiguration('gps_config_yaml'),
+        #launch.substitutions.LaunchConfiguration('waypoint_config_yaml'),
+        #launch.substitutions.LaunchConfiguration('diagnostics_config_yaml')
     ]
 
     mavros_node = Node(
