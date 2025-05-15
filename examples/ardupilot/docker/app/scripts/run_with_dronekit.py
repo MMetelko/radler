@@ -552,6 +552,8 @@ def main():
             controller.config_gps_enable_param(True)
             controller.reboot_autopilot()
         elif args.command == 'reset':
+            controller.config_gps_enable_param(True)
+            controller.reboot_autopilot()
             controller.reset_simulation()
         elif args.command == 'reboot':
             controller.reboot_autopilot()
