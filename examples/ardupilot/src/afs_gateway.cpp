@@ -130,11 +130,12 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
         if (this->global_position_status_available) {
             try {
                 //currentStatus.debug_data.mavlink_gps_info += "Global Navigation Position reached mailbox... ";
-                currentStatus.global_position = "Global Navigation Position (x_lat,y_long,z_alt,z_alt_relative): " 
+                currentStatus.global_position = "Global Navigation Position: " 
                         + to_string((double) this->globalposition_status_mailbox.lat * 1e-7) + ","
                         + to_string((double) this->globalposition_status_mailbox.lon * 1e-7) + ","
                         + to_string((double) this->globalposition_status_mailbox.alt * 1e-3) + ","
-                        + to_string((double) this->globalposition_status_mailbox.relative_alt * 1e-3) + "\n";
+                        + to_string((double) this->globalposition_status_mailbox.relative_alt * 1e-3) + "\n"
+                        + "  (x_lat,y_long,z_alt,z_alt_relative)\n";
                 this->global_position_status_available = false;
             } catch (const std::exception& e) {
                 currentStatus.debug_data.error_msgs += std::string("Exception in global position status check: ") + e.what();
@@ -197,9 +198,11 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
             } catch (const std::exception& e) {
                 currentStatus.diagnostics += "Exception in diagnostics processing: " + std::string(e.what());
             }
-        } else {
-            currentStatus.diagnostics = "Diagnostics status mailbox is null \n";
         }
+        // Only show diagnositics messages that occur
+        //} else {
+        //    currentStatus.diagnostics = "Diagnostics status mailbox is null \n";
+        //}
 
         //ignore staleness check as might have repeated send command to autopilot on failure
         //if (!radl_is_stale(i_f->copter_command) && !radl_is_timeout(i_f->copter_command)) {
@@ -270,16 +273,17 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 << currentStatus.geofence_status
                 << "..........................................\n"
                 << "Diagnostics: "
-                << currentStatus.diagnostics
-                << "..........................................\n"
+                << currentStatus.diagnostics;
+                // Used for debugging only
+                //<< "..........................................\n"
                 //<< "GPS Info: "
                 //<< currentStatus.debug_data.mavlink_gps_info
                 //<< " \n"
                 //<< "Fence Status Info: "
                 //<< currentStatus.debug_data.mavlink_fs_info
                 //<< " \n"
-                << "Errors: "
-                << currentStatus.debug_data.error_msgs;
+                //<< "Errors: "
+                //<< currentStatus.debug_data.error_msgs;
         
     } catch (const std::exception& e) {
         currentStatus.debug_data.error_msgs += std::string("Exception in step function: ") + e.what();
