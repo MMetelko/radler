@@ -450,7 +450,8 @@ class DroneController:
         self.send_batreset()
         print("System Battery Power is reset")
         
-        self.restart_radler_code()  
+        self.config_gps_enable_param(True)
+        print("Set GPS to enabled") 
                      
         self.vehicle.mode = VehicleMode("STABILIZE")
         while self.vehicle.mode != 'STABILIZE':
@@ -460,6 +461,9 @@ class DroneController:
         print("Vehicle is now in STABILIZE mode.")
         # delay while the Radler functions restart
         time.sleep(10)    
+              
+        self.restart_radler_code() 
+        self.reboot_autopilot()
         
     def reboot_autopilot(self):
         # Disable the geofence
@@ -552,8 +556,6 @@ def main():
             controller.config_gps_enable_param(True)
             controller.reboot_autopilot()
         elif args.command == 'reset':
-            controller.config_gps_enable_param(True)
-            controller.reboot_autopilot()
             controller.reset_simulation()
         elif args.command == 'reboot':
             controller.reboot_autopilot()

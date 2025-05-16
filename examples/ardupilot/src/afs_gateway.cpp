@@ -15,7 +15,7 @@ AFS_Gateway::AFS_Gateway()
 
     // Setup QoS settings to match previous configuration for ROS1 demo
     // For MAVLink, queue size 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
-    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(50)).best_effort();
+    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(100)).best_effort();
 
     // queue size 10 is good enough to capture FCS Diagnostics message updates at < 1Hz
     auto diagnostics_qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
@@ -135,7 +135,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                         + to_string((double) this->globalposition_status_mailbox.lon * 1e-7) + ","
                         + to_string((double) this->globalposition_status_mailbox.alt * 1e-3) + ","
                         + to_string((double) this->globalposition_status_mailbox.relative_alt * 1e-3) + "\n"
-                        + "  (x_lat,y_long,z_alt,z_alt_relative)\n";
+                        + "                            (x_lat,y_long,z_alt,z_alt_relative)\n";
                 this->global_position_status_available = false;
             } catch (const std::exception& e) {
                 currentStatus.debug_data.error_msgs += std::string("Exception in global position status check: ") + e.what();
