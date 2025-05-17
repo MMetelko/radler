@@ -175,14 +175,48 @@ class DroneController:
     
     # Function to enable or disable the GPS
     def config_gps_enable_param(self, gps_state):
-        if gps_state:
-            self.vehicle.parameters['GPS1_TYPE'] = 1
-        else:
-            self.vehicle.parameters['GPS1_TYPE'] = 0            
+        try:
+            if gps_state:
+                self.vehicle.parameters['GPS1_TYPE'] = 1
+                print("Setting GPS1_TYPE to 1 (enabled)")
+            else:
+                self.vehicle.parameters['GPS1_TYPE'] = 0   
+                print("Setting GPS1_TYPE to 0 (disabled)")         
 
-        # Verify the change
-        print(f"Adjusted GPS1_TYPE value: {self.vehicle.parameters['GPS1_TYPE']}")
-        self.vehicle.wait_ready('parameters', timeout=300)
+            # Wait for parameter change to take effect
+            self.vehicle.flush()
+            self.vehicle.wait_ready('parameters', timeout=5)
+            
+            # For enabling GPS, we need to force EKF to recognize GPS
+            if gps_state:
+                # Send EKF action to accept GPS
+                action_msg = self.vehicle.message_factory.command_long_encode(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                    0,  # confirmation
+                    0, 0, 0, 0, 0, 0, 0  # Reset EKF modes
+                )
+                self.vehicle.send_mavlink(action_msg)
+                self.vehicle.flush()
+                print("Sent command to reset EKF")
+                time.sleep(2)  # Give time for the command to process
+                
+                # Check GPS lock status
+                gps_tries = 10
+                while gps_tries > 0:
+                    if self.vehicle.gps_0.fix_type >= 3:
+                        print(f"GPS has fix. Type: {self.vehicle.gps_0.fix_type}")
+                        break
+                    print(f"Waiting for GPS fix. Current: {self.vehicle.gps_0.fix_type}")
+                    time.sleep(1)
+                    gps_tries -= 1
+                
+            print(f"GPS1_TYPE parameter now: {self.vehicle.parameters['GPS1_TYPE']}")
+            return True
+        except Exception as e:
+            print(f"Error setting GPS parameter: {str(e)}")
+            return False
            
     # Load simulation parameters
     def load_sim_params(self):
@@ -551,10 +585,22 @@ def main():
         signal.signal(signal.SIGINT, signal_handler)
     
         if args.command == 'disableGPS':
-            controller.config_gps_enable_param(False)
+            try:
+                controller.config_gps_enable_param(False)
+                print("GPS disabled successfully")
+            except Exception as e:
+                print(f"Error disabling GPS: {str(e)}")
+            finally:
+                print("GPS disable operation completed")
+                
         elif args.command == 'enableGPS':
-            controller.config_gps_enable_param(True)
-            controller.reboot_autopilot()
+            try:
+                controller.config_gps_enable_param(True)
+                print("GPS enabled successfully")
+            except Exception as e:
+                print(f"Error enabling GPS: {str(e)}")
+            finally:
+                print("GPS enable operation completed")
         elif args.command == 'reset':
             controller.reset_simulation()
         elif args.command == 'reboot':
