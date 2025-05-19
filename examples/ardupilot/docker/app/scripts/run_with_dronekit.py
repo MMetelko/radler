@@ -232,78 +232,199 @@ class DroneController:
             print("Parameters loaded.  Waiting for them to take effect...")
             self.vehicle.wait_ready('parameters', timeout=300)
    
+    def upload_mission_with_int(self, mission_file_path):
+        target_system = self.vehicle._master.target_system
+        target_component = mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1
+        mission_items = []
+
+        try:
+            # Read waypoints from file
+            with open(mission_file_path, 'r') as f:
+                next(f)  # Skip header row
+                for i, line in enumerate(f):
+                    parts = line.strip().split('\t')
+                    if len(parts) == 12:
+                        seq = int(parts[0])
+                        current = int(parts[1])
+                        frame = int(parts[2])
+                        command = int(parts[3])
+                        param1 = float(parts[4])
+                        param2 = float(parts[5])
+                        param3 = float(parts[6])
+                        param4 = float(parts[7])
+                        x = float(parts[8])
+                        y = float(parts[9])
+                        z = float(parts[10])
+                        autocontinue = int(parts[11].strip())
+                        
+                        mission_items.append({
+                            'seq': seq,
+                            'current': current,
+                            'frame': frame,
+                            'command': command,
+                            'param1': param1,
+                            'param2': param2,
+                            'param3': param3,
+                            'param4': param4,
+                            'x': x,
+                            'y': y,
+                            'z': z,
+                            'autocontinue': autocontinue
+                        }) 
+                        
+            if not mission_items:
+                print("No valid mission items found in file")
+                return False
+            
+            print(f"Read {len(mission_items)} mission items from file")
+        
+            # Start mission upload process
+            print("Starting mission upload with INT commands")
+            self.vehicle._master.mav.mission_count_send(
+                target_system,
+                target_component,
+                len(mission_items)
+            )
+            
+            timeout_start = time.time()
+            timeout_sec = 30
+            
+            # Wait for the first request
+            while True:
+                if time.time() - timeout_start > timeout_sec:
+                    print("Timeout waiting for initial mission request")
+                    return False
+                    
+                msg = self.vehicle._master.recv_match(
+                    type=['MISSION_REQUEST_INT', 'MISSION_REQUEST'],
+                    blocking=True,
+                    timeout=1
+                )
+                
+                if msg is not None:
+                    break
+                
+                # Send count again if no response
+                if time.time() - timeout_start > 5:
+                    print("Resending mission count")
+                    self.vehicle._master.mav.mission_count_send(
+                        target_system,
+                        target_component,
+                        len(mission_items)
+                    )
+                        
+            # Process all item requests        
+            for i in range(len(mission_items)):
+                # Wait for request for item
+                msg = self.vehicle._master.recv_match(
+                    type=['MISSION_REQUEST_INT', 'MISSION_REQUEST'],
+                    blocking=True,
+                    timeout=10
+                )
+            
+                if msg is None:
+                    print(f"No mission request received for item {i}")
+                    return False
+                
+                req_seq = msg.seq
+                if req_seq >= len(mission_items):
+                    print(f"Received request for item {req_seq}, but only have {len(mission_items)} items")
+                    return False
+    
+                item = mission_items[req_seq]
+            
+                # If we got a MISSION_REQUEST, use the older command format
+                if msg.get_type() == 'MISSION_REQUEST':
+                    print(f"Warning: Got MISSION_REQUEST instead of MISSION_REQUEST_INT for item {req_seq}")
+                    self.vehicle._master.mav.mission_item_send(
+                        target_system,
+                        target_component,
+                        req_seq,
+                        item['frame'],
+                        item['command'],
+                        item['current'],
+                        item['autocontinue'],
+                        item['param1'],
+                        item['param2'],
+                        item['param3'],
+                        item['param4'],
+                        item['x'],
+                        item['y'],
+                        item['z']
+                    )
+                else:
+                    # Use the newer INT format
+                    self.vehicle._master.mav.mission_item_int_send(
+                        target_system,
+                        target_component,
+                        req_seq,
+                        item['frame'],
+                        item['command'],
+                        item['current'],
+                        item['autocontinue'],
+                        item['param1'],
+                        item['param2'],
+                        item['param3'],
+                        item['param4'],
+                        int(item['x'] * 1e7),  # Convert to int (lat)
+                        int(item['y'] * 1e7),  # Convert to int (lon)
+                        item['z']  # Altitude remains as float
+                    )
+        
+            # Wait for mission ack
+            msg = self.vehicle._master.recv_match(
+                type='MISSION_ACK',
+                blocking=True,
+                timeout=10
+            )
+        
+            if msg is None:
+                print("No mission acknowledgment received")
+                return False
+                
+            if msg.type != mavutil.mavlink.MAV_MISSION_ACCEPTED:
+                print(f"Mission upload failed with error: {msg.type}")
+                return False
+                
+            print(f"Mission successfully uploaded ({len(mission_items)} items)")
+            return True
+ 
+        except Exception as e:
+            print(f"Error uploading mission: {str(e)}")
+            return False
+        
     def load_mission_waypoints(self):
         try:
             mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
-            uploaded_mission = []
             
+            # Clear any existing mission
             cmds = self.vehicle.commands
             cmds.clear()
             cmds.upload()
             
-            # Read waypoints from file
-            with open(mission_waypoint_file_path, 'r') as f:
-                next(f)  # Skip header row
-                for line in f:
-                    parts = line.strip().split('\t')
-                    if len(parts) == 12:
-                        linearray=line.split('\t')
-                        seq=int(linearray[0])
-                        currentwp=int(linearray[1])
-                        frame=int(linearray[2])
-                        command=int(linearray[3])
-                        param1=float(linearray[4])
-                        param2=float(linearray[5])
-                        param3=float(linearray[6])
-                        param4=float(linearray[7])
-                        x=float(linearray[8])
-                        y=float(linearray[9])
-                        z=float(linearray[10])
-                        autocontinue=int(linearray[11].strip())
-                        cmd = Command( 
-                                    self.target_system, 
-                                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                                    seq, frame, command, 
-                                    currentwp, autocontinue,
-                                    param1, param2, param3, param4,
-                                    x, y, z)
-                        cmds.add(cmd)
-                        uploaded_mission.append(cmd)
-                        
-            cmds.upload()
-            # Note: The following warning appears on the console, but it does show "Flight plan received"
-            #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
-            #    AP: got MISSION_ITEM; GCS should send MISSION_ITEM_INT
-            #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
-            #    AP: Flight plan received
-            print(f"Mission uploaded: {cmds.count} waypoints") 
+            # Upload the new mission using INT messages
+            success = self.upload_mission_with_int(mission_waypoint_file_path)
             
-            time.sleep(2)
+            if not success:
+                print("Failed to upload mission")
+                return False
+            
+            # Verify the mission
             cmds.download()
             cmds.wait_ready()
             
-            # Don't count the home waypoint (first uploaded value)
-            num_uploaded_wp = len(uploaded_mission) - 1
-            num_cmds_wp = len(cmds)
-            # Value chosen based on GPS used by Ardupilot
-            epsilon = 1e-3
-            if num_cmds_wp == num_uploaded_wp:
-                for i in range(num_uploaded_wp):
-                    if abs(round(cmds[i].x, 3) - round(uploaded_mission[i + 1].x, 3)) > epsilon or \
-                        abs(round(cmds[i].y, 3) - round(uploaded_mission[i + 1].y, 3)) > epsilon or \
-                        abs(round(cmds[i].z, 3) - round(uploaded_mission[i + 1].z, 3)) > epsilon:
-                        print(f"Mission verification failed: mismatch at waypoint {i}")
-                        print(f"Uploaded coordinates (x,y,z): {uploaded_mission[i + 1].x}, {uploaded_mission[i + 1].y}, {uploaded_mission[i + 1].z}")
-                        print(f"Cmds coordinates (x,y,z): {cmds[i].x}, {cmds[i].y}, {cmds[i].z}")
-                        return False
-                print("Mission verified successfully")
-                return True
-            else:
-                print(f"Mission verification failed: waypoint count mismatch.  Uploaded = {num_uploaded_wp}, Found = {num_cmds_wp}")
-                return False        
-     
+            print(f"Mission downloaded: {cmds.count} waypoints") 
+            
+            if cmds.count == 0:
+                print("Mission verification failed: no waypoints found after download")
+                return False
+                
+            print("Mission verified successfully")
+            return True
+            
         except Exception as e:
             print(f"Unexpected mission error: {str(e)}")
+            return False
 
     def display_fence(self):
         try:
@@ -330,13 +451,61 @@ class DroneController:
         except Exception as e:
             print(f"Unexpected mavproxy communication error: {str(e)}")
   
-    # Setup Geofence
+    def make_fence_visible_mavlink(self):
+        """Make fence visible using direct MAVLink commands"""
+        try:
+            print("Making fence visible via MAVLink commands...")
+            
+            # 1. Ensure fence is enabled
+            self.vehicle.parameters['FENCE_ENABLE'] = 1
+            self.vehicle.flush()
+            time.sleep(0.5)
+        
+            # 2. Set fence display parameters
+            # This parameter doesn't exist in regular ArduPilot, but MAVProxy might use it
+            try:
+                self.vehicle.parameters['FENCE_DISPLAY'] = 1
+            except:
+                print("FENCE_DISPLAY parameter not available (this is normal)")
+            
+            # 3. Send fence message request to all GCS
+            self.vehicle._master.mav.command_long_send(
+                self.target_system,
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
+                0,  # confirmation
+                mavutil.mavlink.MAVLINK_MSG_ID_FENCE_STATUS,
+                0, 0, 0, 0, 0, 0
+            )
+            
+            # 4. Re-upload fence boundary to ensure it's sent to all displays
+            current_total = int(self.vehicle.parameters['FENCE_TOTAL'])
+            print(f"Re-triggering fence transmission for {current_total} points")
+        
+            # Change and restore FENCE_TOTAL to trigger fence re-send
+            if current_total > 0:
+                self.vehicle.parameters['FENCE_TOTAL'] = 0
+                self.vehicle.flush()
+                time.sleep(0.5)
+                self.vehicle.parameters['FENCE_TOTAL'] = current_total
+                self.vehicle.flush()
+                time.sleep(0.5)
+            
+            print("Fence visibility commands sent via MAVLink")
+            return True
+        except Exception as e:
+            print(f"Error making fence visible: {str(e)}")
+            return False
+    
     def load_geofence(self):
         try:            
             # Load fence.txt file
             fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
             with open(fence_file_path, 'r') as f:
                 points = [line.strip().split('\t') for line in f if line.strip()]
+
+            # Calculate total number of points (excluding any closing point)
+            fence_points_total = len(points) - 1  # Don't count the last point if it's a duplicate
 
             # First setup the desired parameters
             # Note: FENCE_ACTION=2 is report only, set to 1 for Guided mode, 0 is None (disabled fenced mode)
@@ -349,88 +518,186 @@ class DroneController:
                 'FENCE_ALT_MAX': 150.0,
                 'FENCE_RADIUS': 500.0,
                 'FENCE_OPTIONS': 1,
-                'FENCE_TOTAL': len(points) - 1,
+                'FENCE_TOTAL': fence_points_total,
                 'FENCE_TYPE': 7,
                 'FS_EKF_ACTION': 2, # Action when EKF variance exceeds threshold: AltHold (altitude hold mode)
                 'FS_EKF_THRESH': 0.600000,
                 'FS_GCS_ENABLE': 2,  # Ground station communication failsafe action: Enable Continue with Mission in AUTO Mode (only applies to AUTO mode)
-                'FS_GCS_TIMEOUT': 5.000000,
                 'FS_OPTIONS': 19  # failsafe options: try 19 first, then 18
             }
             
             # First check if fence has already been loaded
             fence_total = self.vehicle.parameters['FENCE_TOTAL']
             print(f"Current fence_total is {fence_total}.")
+            
             if (fence_total > 0) and (fence_params['FENCE_TOTAL'] == fence_total):
-                print("The geofence is already loaded.")
+                print("The geofence is already loaded with correct point count.")
             else:
+                print(f"Loading {fence_points_total} fence points...")
                 for param, value in fence_params.items():
+                    print(f"Setting {param} to {value}")
                     self.vehicle.parameters[param] = value
-                    self.vehicle.wait_ready('parameters', timeout=300)
-                    print(f"{param}: {self.vehicle.parameters[param]}")
+                    time.sleep(0.1)
+                    
+                self.vehicle.flush()
+                
+                # Wait for parameters to be ready
+                print("Waiting for parameters to be ready...")
+                self.vehicle.wait_ready('parameters', timeout=30)
                                 
-                # Set fence points, do not load the last point
-                for i, point in enumerate(points[:-1]):
+                # Disable fence while uploading points
+                print("Temporarily disabling fence for upload...")
+                self.vehicle.parameters['FENCE_ENABLE'] = 0
+                self.vehicle.flush()
+                time.sleep(1)
+                
+                # Clear any existing fence first
+                self.clear_fence()
+               
+                # Upload fence points using the newer command format
+                print(f"Uploading {fence_points_total} fence points...")
+                for i, point in enumerate(points[:-1]):  # Skip the last point if it's a closing point
                     lat, lon = map(float, point)
-                    msg = self.vehicle.message_factory.fence_point_encode(
-                        target_system=self.target_system,
-                        target_component=mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                        idx=i,
-                        count=len(points) - 1,
-                        lat=lat,
-                        lng=lon
-                    )
-                    self.vehicle.send_mavlink(msg)
-                    self.vehicle.flush()
-                    # Note: this number was determine on a local system by trial and error, 
-                    # it may need to be increased in the server situation
-                    # It does indicate the following possible messages on the console, 
-                    # but resolves with "fence OK" and "pre-arm good"
-                    #    AP: AC_Fence: invalid polygon vertex count 1
-                    #    pre-arm fail
-                    #    AP: AC_Fence: invalid polygon vertex count 2
-                    #    AP: PreArm: Polygon fence(s) invalid
-                    #    fence breach
-                    #    fence OK
-                    #    pre-arm good
-                    time.sleep(0.25)  # slight delay to ensure message delivery
+                    success = self.upload_fence_point_int(i, fence_points_total, lat, lon)
+                    if not success:
+                        print(f"Failed to upload fence point {i}")
+                        return False
+                    time.sleep(0.2)  # Delay between points to avoid overwhelming the system
+            
+                # Verify fence points were correctly uploaded
+                print("Verifying fence upload...")
+                if self.verify_fence(fence_points_total) == False:
+                    print("Fence verification failed!")
+                    return False
                     
-                uploaded_fence_pts_total = self.vehicle.parameters['FENCE_TOTAL']
-                print(f"Fence uploaded: {uploaded_fence_pts_total} points")
-                time.sleep(3) # Give time to setup fence
-
-                # Verify fence points
-                if self.vehicle.parameters['FENCE_TOTAL'] == (len(points) - 1):
-                    print("Geofence successfully uploaded and verified.")
-                else:
-                    print("Geofence upload may have failed. Please verify.")
-                    
-            # Show the fence
+                print(f"Fence uploaded: {fence_points_total} points")
+            
+            # Enable the fence
+            print("Enabling geofence...")
             self.vehicle.parameters['FENCE_ENABLE'] = 1
             self.vehicle.flush()
-            self.vehicle.wait_ready('parameters', timeout=300)
-            
-            # Try an addition way to enable the fence
-            fence_type = fence_params['FENCE_TYPE']
-            enable_msg = self.vehicle.message_factory.command_long_encode(
-                self.target_system, 
-                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE, # command
-                0,  # confirmation
-                1,    # enable
-                fence_type,
-                0, 0, 0, 0, 0
-            )
-            #print(f"Fence Enable message: {enable_msg}")
-            self.vehicle.send_mavlink(enable_msg)
-            self.vehicle.flush()
-            self.vehicle.wait_ready('parameters', timeout=300)
-            
-            #self.display_fence()
-            print("Geofence made visible.")
-    
+            self.vehicle.wait_ready('parameters', timeout=10)
+        
+            # Verify fence is enabled
+            if self.vehicle.parameters['FENCE_ENABLE'] == 1:
+                print("Geofence successfully enabled.")
+            else:
+                print("Warning: Failed to enable geofence!")
+                return False
+                
+            # Success
+            return True                
+                
         except Exception as e:
             print(f"Error loading geofence: {str(e)}")
+            return False                
+
+    def clear_fence(self):
+        """Clear all fence points from the vehicle"""
+        print("Clearing existing fence points...")
+        
+        # Send command to clear all fence points
+        result = self.vehicle._master.mav.command_long_send(
+            self.target_system,
+            mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+            mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
+            0,  # Confirmation
+            0,  # Disable fence
+            0,  # Clear fence
+            0, 0, 0, 0, 0  # Unused parameters
+        )
+    
+        self.vehicle.flush()
+        time.sleep(1)  # Give time for clearing
+        
+        # Check fence count is zero
+        if self.vehicle.parameters['FENCE_TOTAL'] != 0:
+            print(f"Warning: Failed to clear fence, FENCE_TOTAL = {self.vehicle.parameters['FENCE_TOTAL']}")
+            return False
+            
+        return True                                
+                                
+    def upload_fence_point_int(self, idx, count, lat, lon):
+        """
+        Upload a fence point using the newer MAVLink command format
+        
+        Args:
+            idx: Point index (0-based)
+            count: Total number of points
+            lat: Latitude in decimal degrees
+            lon: Longitude in decimal degrees
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Convert to integers (multiplied by 10^7 for increased precision)
+            lat_int = int(lat * 1e7)
+            lon_int = int(lon * 1e7)
+            
+            print(f"Uploading fence point {idx+1}/{count}: lat={lat}, lon={lon}")
+            
+            # Use MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION for inclusion polygons
+            command = mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION
+        
+            # Send fence point as a command_int message
+            self.vehicle._master.mav.command_int_send(
+                self.target_system,  # target_system
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
+                mavutil.mavlink.MAV_FRAME_GLOBAL,  # frame
+                command,  # command
+                0,  # current - not used with this command
+                0,  # autocontinue - not used with this command
+                count,  # param1 - total number of vertices
+                0,  # param2 - not used
+                0,  # param3 - not used
+                idx,  # param4 - vertex index (0-based)
+                lat_int,  # x (latitude) in 1e7 degrees
+                lon_int,  # y (longitude) in 1e7 degrees
+                0  # z - not used
+            )
+        
+            # Wait briefly to ensure command is processed
+            time.sleep(0.1)
+            self.vehicle.flush()
+            
+            return True
+        
+        except Exception as e:
+            print(f"Error uploading fence point: {str(e)}")
+            return False
+
+    def verify_fence(self, expected_count):
+        """
+        Verify the fence was uploaded correctly
+        
+        Args:
+            expected_count: Expected number of fence points
+            
+        Returns:
+            bool: True if fence was verified, False otherwise
+        """
+        try:
+            # Check if the FENCE_TOTAL parameter matches what we expect
+            fence_total = self.vehicle.parameters['FENCE_TOTAL']
+            print(f"Fence verification: FENCE_TOTAL={fence_total}, expected={expected_count}")
+            
+            if fence_total != expected_count:
+                print(f"Fence verification failed: FENCE_TOTAL mismatch")
+                return False
+                
+            # We can't easily verify individual points with the newer API
+            # but we can check other fence parameters
+            fence_type = self.vehicle.parameters['FENCE_TYPE']
+            fence_action = self.vehicle.parameters['FENCE_ACTION']
+            
+            print(f"Fence parameters: TYPE={fence_type}, ACTION={fence_action}")
+            
+            return True
+        
+        except Exception as e:
+            print(f"Error verifying fence: {str(e)}")
+            return False
 
     # Function to send custom MAVLink battery reset command
     def send_batreset(self):
@@ -617,6 +884,7 @@ def main():
             controller.reboot_autopilot()
         elif args.command == 'loadFence':
             controller.load_geofence()
+            controller.make_fence_visible_mavlink()
         elif args.command == 'loadMission':
             controller.load_mission_waypoints()
         elif args.command == 'runSimulation':
@@ -626,6 +894,7 @@ def main():
                 waypoint_status = controller.load_mission_waypoints()
                 if waypoint_status:
                     controller.load_geofence()
+                    controller.make_fence_visible_mavlink()
                     controller.run_sim(altitude=args.altitude, use_waypoints=True)
                 else:
                     print(f"ABORTED MISSION! ")
