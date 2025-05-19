@@ -339,13 +339,23 @@ class DroneController:
                 points = [line.strip().split('\t') for line in f if line.strip()]
 
             # First setup the desired parameters
+            # Note: FENCE_ACTION=2 is report only, set to 1 for Guided mode, 0 is None (disabled fenced mode)
+            # Include fail safe settings that could effect the fence actions
+            #   Failsafe options: Bit 4 (16): Continue if in auto mission on GCS failsafe
+            #                     Bit 1 (2): Continue if in auto mode on RC failsafe
+            #                     Bit 0 (1): Clear flight mode actions from fence breach
             fence_params = {
-                'FENCE_ACTION': 2,  # report only
+                'FENCE_ACTION': 0,
                 'FENCE_ALT_MAX': 150.0,
                 'FENCE_RADIUS': 500.0,
                 'FENCE_OPTIONS': 1,
                 'FENCE_TOTAL': len(points) - 1,
-                'FENCE_TYPE': 7
+                'FENCE_TYPE': 7,
+                'FS_EKF_ACTION': 2, # Action when EKF variance exceeds threshold: AltHold (altitude hold mode)
+                'FS_EKF_THRESH': 0.600000,
+                'FS_GCS_ENABLE': 2,  # Ground station communication failsafe action: Enable Continue with Mission in AUTO Mode (only applies to AUTO mode)
+                'FS_GCS_TIMEOUT': 5.000000,
+                'FS_OPTIONS': 19  # failsafe options: try 19 first, then 18
             }
             
             # First check if fence has already been loaded
