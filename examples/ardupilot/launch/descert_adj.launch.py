@@ -54,7 +54,7 @@ def generate_launch_description():
                 'plugin_gps_yaml': get_package_share_directory('mavros') + '/launch/plugin_gps.yaml',
                 'plugin_waypoint_yaml': get_package_share_directory('mavros') + '/launch/plugin_waypoint.yaml',
                 'plugin_diagnostics_yaml': get_package_share_directory('mavros') + '/launch/plugin_diagnostics.yaml',
-                #'mavros_config_yaml': get_package_share_directory('mavros') + '/launch/mavros_config.yaml',
+                'mavros_config_yaml': get_package_share_directory('mavros') + '/launch/mavros_config.yaml',
                 'config_yaml': get_package_share_directory('mavros') + '/launch/descert_config.yaml',
                 'global_position_config_yaml': get_package_share_directory('mavros') + '/launch/global_position_config.yaml',
                 'setpoint_position_config_yaml': get_package_share_directory('mavros') + '/launch/setpoint_position_config.yaml',

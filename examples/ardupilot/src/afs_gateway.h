@@ -30,6 +30,13 @@ class AFS_Gateway
         AFS_Gateway();
         void step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_t* o, radl_out_flags_t* o_f);
     private:
+        // Debug Message structure
+        struct DebugInfo {
+            std::string mavlink_gps_info;
+            std::string mavlink_fs_info;
+            std::string error_msgs;
+        };
+
         // Define a struct to hold all status information
         struct StatusInfo {
             std::string battery_status;
@@ -40,6 +47,7 @@ class AFS_Gateway
             std::string gps_status;
             std::string geofence_status;            
             std::string diagnostics; 
+            DebugInfo debug_data;
         };
 
         std::shared_ptr<rclcpp::Node> node;
