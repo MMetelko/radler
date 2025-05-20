@@ -57,28 +57,73 @@ class DroneController:
             time.sleep(1)
 
         print("Changing to GUIDED mode...")
-        self.vehicle.mode = VehicleMode("GUIDED")
-        while self.vehicle.mode != 'GUIDED':
-            print(" Waiting for guiding mode...")
-            time.sleep(1)
+        
+        # Try to switch to GUIDED mode with timeout and mode-cycling
+        guided_mode_attempts = 0
+        max_guided_attempts = 3
+        guided_timeout = 5  # seconds
+        
+        while guided_mode_attempts < max_guided_attempts:
+            guided_mode_attempts += 1
+            self.vehicle.mode = VehicleMode("GUIDED")
+            
+            # Wait for specified timeout for GUIDED mode
+            start_time = time.time()
+            while self.vehicle.mode != 'GUIDED':
+                if time.time() - start_time > guided_timeout:
+                    print(f" GUIDED mode timeout (attempt {guided_mode_attempts}/{max_guided_attempts})")
+                    break            
+                print(" Waiting for guiding mode...")
+                time.sleep(1)
+                
+            # If we successfully entered GUIDED mode, break the loop
+            if self.vehicle.mode == 'GUIDED':
+                print("Successfully entered GUIDED mode")
+                break
+
+            # If we're still stuck, try cycling through STABILIZE mode first
+            print("Trying to cycle through STABILIZE mode...")
+            self.vehicle.mode = VehicleMode("STABILIZE")
+            time.sleep(2)  # Give it time to change modes
+            
+        # If we still couldn't enter GUIDED mode after all attempts, abort
+        if self.vehicle.mode != 'GUIDED':
+            print("Failed to enter GUIDED mode after multiple attempts. Aborting takeoff.")
+            return False
 
         print("Arming motors...")
         self.vehicle.armed = True
+        
+        # Wait for arming with timeout
+        arm_timeout = 10  # seconds
+        start_time = time.time()
         while not self.vehicle.armed:
+            if time.time() - start_time > arm_timeout:
+                print("Arming timeout. Aborting takeoff.")
+                return False
             print(" Waiting for arming...")
             time.sleep(1)
 
         print("Taking off!")
         self.vehicle.simple_takeoff(aTargetAltitude)
 
+        # Wait for altitude with timeout
+        altitude_timeout = 30  # seconds
+        start_time = time.time()
         while True:
-            print(" Altitude: ", self.vehicle.location.global_relative_frame.alt)
-            if self.vehicle.location.global_relative_frame.alt >= aTargetAltitude * 0.95:
+            current_altitude = self.vehicle.location.global_relative_frame.alt
+            print(f" Altitude: {current_altitude}")
+            
+            if current_altitude >= aTargetAltitude * 0.95:
                 print("Reached target altitude.")
-                break
+                return True
             elif self.vehicle.mode == 'RTL':
                 print("A fail-safe mechanism changed the vehicle mode to RTL.")
-                break
+                return False
+            elif time.time() - start_time > altitude_timeout:
+                print("Altitude timeout. Vehicle did not reach target altitude.")
+                return False
+            
             time.sleep(1)
 
     def get_location_offset_meters(self, original_location, dNorth, dEast, altDelta):
@@ -136,11 +181,13 @@ class DroneController:
         # Main script starts here
         try:
             print(f"Taking off to indicated altitude of {altitude} (in meters)")
-            self.arm_and_takeoff(altitude)
+            takeoff_success = self.arm_and_takeoff(altitude)
+            
+            if not takeoff_success:
+                print("Takeoff failed. Aborting mission.")
+                return False
 
             if use_waypoints:
-                # Stay at the altitude for 3 minutes
-                #time.sleep(180)
                 # If geofence breach happens, it does RTL
                 if self.vehicle.mode != 'RTL':
                     print("Changing to AUTO mode...")
