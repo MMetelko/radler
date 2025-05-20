@@ -108,7 +108,7 @@ class DroneController:
         self.vehicle.simple_takeoff(aTargetAltitude)
 
         # Wait for altitude with timeout
-        altitude_timeout = 30  # seconds
+        altitude_timeout = 180  # seconds
         start_time = time.time()
         while True:
             current_altitude = self.vehicle.location.global_relative_frame.alt
