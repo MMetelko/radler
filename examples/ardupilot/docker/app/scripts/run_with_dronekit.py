@@ -587,6 +587,39 @@ class DroneController:
         except Exception as e:
             print(f"Error making fence visible: {str(e)}")
             return False
+        
+    def ensure_fence_visible(self):
+        """Force the fence to be visible on the map"""
+        print("Requesting fence visibility...")
+        
+        # 1. Request fence point download to trigger visualization
+        msg = self.vehicle.message_factory.fence_fetch_point_encode(
+            self.target_system,
+            mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+            0  # Request first point
+        )
+        self.vehicle.send_mavlink(msg)
+        self.vehicle.flush()
+        
+        # 2. Toggle a parameter to trigger updates
+        try:
+            orig_type = int(self.vehicle.parameters['FENCE_TYPE'])
+            # Toggle between current type and current type + 8 (add/remove inclusion circle)
+            self.vehicle.parameters['FENCE_TYPE'] = orig_type ^ 8
+            self.vehicle.flush()
+            time.sleep(0.5)
+            self.vehicle.parameters['FENCE_TYPE'] = orig_type
+            self.vehicle.flush()
+        except:
+            pass
+
+        # 3. Send fence breach message to make GCS notice the fence
+        msg = self.vehicle.message_factory.statustext_encode(
+            mavutil.mavlink.MAV_SEVERITY_NOTICE,
+            b"FENCE: Configuration updated, fence ready"
+        )
+        self.vehicle.send_mavlink(msg)
+        self.vehicle.flush()
     
     def load_geofence(self):
         try:            
@@ -688,16 +721,17 @@ class DroneController:
             self.vehicle.parameters['FENCE_ENABLE'] = 1
             self.vehicle.flush()
                 
+            self.ensure_fence_visible()
             # Set a parameter to force redraw
-            try:
-                orig_radius = self.vehicle.parameters['FENCE_RADIUS']
-                self.vehicle.parameters['FENCE_RADIUS'] = orig_radius + 1
-                self.vehicle.flush()
-                time.sleep(0.5)
-                self.vehicle.parameters['FENCE_RADIUS'] = orig_radius
-                self.vehicle.flush()
-            except:
-                pass
+            # try:
+            #     orig_radius = self.vehicle.parameters['FENCE_RADIUS']
+            #     self.vehicle.parameters['FENCE_RADIUS'] = orig_radius + 1
+            #     self.vehicle.flush()
+            #     time.sleep(0.5)
+            #     self.vehicle.parameters['FENCE_RADIUS'] = orig_radius
+            #     self.vehicle.flush()
+            # except:
+            #     pass
         
             # Success
             return True                
