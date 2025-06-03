@@ -75,6 +75,15 @@ def generate_launch_description():
                 'respawn_mavros': launch.substitutions.LaunchConfiguration('respawn_mavros')
             }.items()
         )
+        # Create a MAVLINK bridge to allow the 'dronekit' script communications to be seen by the GCS which communicates with the map and console.
+        launch.actions.IncludeLaunchDescription(
+            launch.launch_description_sources.PythonLaunchDescriptionSource(
+                os.path.join(get_package_share_directory('mavros'), 'launch/mavlink_bridge.launch.py')
+            ),
+            launch_arguments={
+                'mavlink_bridge_url': 'udp://@:14560?to=127.0.0.1:14551'
+            }.items()
+        )
     ])
     return ld
 
