@@ -507,6 +507,263 @@ class DroneController:
         except Exception as e:
             print(f"Unexpected mission error: {str(e)}")
     
+    # MM TODO: Redefining fence setup
+    def load_geofence(self):
+        try:            
+            # First check if fence is already loaded with correct point count
+            fence_total = int(self.vehicle.parameters['FENCE_TOTAL'])
+            fence_enabled = int(self.vehicle.parameters['FENCE_ENABLE'])
+            fence_action = int(self.vehicle.parameters['FENCE_ACTION'])
+            fence_type = int(self.vehicle.parameters['FENCE_TYPE'])
+            
+            print(f"Current fence status: TOTAL={fence_total}, ENABLE={fence_enabled}, TYPE={fence_type}, ACTION={fence_action}")
+
+            # If fence is already properly set up (correct points and parameters)
+            if (fence_total >= 3 and fence_enabled == 1 and (fence_type & 2) and 
+                hasattr(self, 'fence_uploaded') and self.fence_uploaded):
+                print("Geofence is already properly set up and enabled.")
+                return True
+
+            # Load fence.txt file
+            fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
+            with open(fence_file_path, 'r') as f:
+                points = [line.strip().split('\t') for line in f if line.strip()]
+
+            # Calculate total number of points (excluding any closing point)
+            fence_points_total = len(points) - 1  # Don't count the last point if it's a duplicate
+            
+            # Check if we have enough points
+            if fence_points_total < 3:
+                print(f"ERROR: Fence file contains only {fence_points_total} points. At least 3 are required.")
+                return False
+
+            # First setup the desired parameters
+            # Note: FENCE_ACTION=2 is report only, set to 1 for Guided mode, 0 is None (disabled fenced mode)
+            # Include fail safe settings that could effect the fence actions
+            fence_params = {
+                'FENCE_ACTION': 0,
+                'FENCE_ALT_MAX': 150.0,
+                'FENCE_RADIUS': 500.0,
+                'FENCE_OPTIONS': 1,
+                # Temporarily set FENCE_TOTAL to 0 to clear any existing fence
+                'FENCE_TOTAL': 0,
+                # Temporarily disable polygon fence during upload to avoid validation errors
+                'FENCE_TYPE': (fence_type & ~2),  # Clear bit 1 (polygon) temporarily
+            }
+                    
+            # Need to upload points if count doesn't match
+            upload_points_needed = (fence_total != fence_points_total or fence_total == 0)
+            
+            # Disable fence before making any changes
+            if fence_enabled:
+                print("Temporarily disabling fence for upload...")
+                self.vehicle.parameters['FENCE_ENABLE'] = 0
+                self.vehicle.flush()
+                time.sleep(1)
+        
+            # Set all required parameters
+            print("Setting fence parameters...")
+            for param, value in fence_params.items():
+                print(f"Setting {param} = {value}")
+                self.vehicle.parameters[param] = value
+                time.sleep(0.2)  # Brief delay for parameter update
+            
+            self.vehicle.flush()
+            time.sleep(1)
+        
+            # Upload fence points if needed
+            if upload_points_needed:            
+                print(f"Loading {fence_points_total} fence points...")
+                
+                # Set FENCE_TOTAL parameter to the number of points
+                self.vehicle.parameters['FENCE_TOTAL'] = fence_points_total
+                self.vehicle.flush()
+                time.sleep(1)
+    
+                # Try to use bulk upload method if available (newer ArduPilot)
+                try:
+                    # Check if the method exists by trying to access it
+                    if hasattr(self.vehicle, 'message_factory') and hasattr(self.vehicle.message_factory, 'fence_points_encode'):
+                        print("Using bulk fence upload method")
+                        
+                        # Prepare points array (lat, lon pairs flattened)
+                        points_array = []
+                        for point in points[:-1]:  # Skip the last point if it's a closing point
+                            lat, lon = map(float, point)
+                            points_array.extend([lat, lon])
+                        
+                        # Pad if necessary (shouldn't be needed)
+                        while len(points_array) < 2 * fence_points_total:
+                            points_array.extend([0.0, 0.0])
+                        
+                        # Send all points at once
+                        msg = self.vehicle.message_factory.fence_points_encode(
+                            self.target_system,
+                            mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                            0,  # start index
+                            fence_points_total,  # count
+                            points_array  # points array
+                        )
+                        self.vehicle.send_mavlink(msg)
+                        self.vehicle.flush()
+                        time.sleep(1)
+                        bulk_upload_successful = True
+                    else:
+                        bulk_upload_successful = False
+                except (AttributeError, TypeError) as e:
+                    print(f"Bulk upload not supported: {e}")
+                    bulk_upload_successful = False
+                    
+                # Fall back to point-by-point if bulk upload isn't available or failed
+                if not bulk_upload_successful:
+                    print("Using point-by-point fence upload method")
+                    
+                    for i, point in enumerate(points[:-1]):  # Skip the last point if it's a closing point
+                        lat, lon = map(float, point)
+                        print(f"Uploading point {i+1}/{fence_points_total}: {lat}, {lon}")
+                    
+                        msg = self.vehicle.message_factory.fence_point_encode(
+                            self.target_system,
+                            mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                            i,  # point index
+                            fence_points_total,  # total fence points
+                            lat,
+                            lon
+                        )
+                        self.vehicle.send_mavlink(msg)
+                        self.vehicle.flush()
+                        time.sleep(0.2)  # Delay to ensure reliable delivery
+                                    
+                # Verify the fence was uploaded
+                actual_total = int(self.vehicle.parameters['FENCE_TOTAL'])
+                if actual_total != fence_points_total:
+                    print(f"Warning: Fence verification issue: Expected {fence_points_total} points but got {actual_total}")
+                else:
+                    print(f"Fence upload verified: {actual_total} points")
+            else:
+                print("Using existing fence points")
+            
+            # Now re-enable polygon fence type and set final parameters
+            print("Setting final fence parameters...")
+            final_params = {
+                'FENCE_TYPE': 7,  # Re-enable polygon fence (bit 1) plus other types
+                'FENCE_ACTION': 2,  # Report only
+            }
+            
+            for param, value in final_params.items():
+                print(f"Setting {param} = {value}")
+                self.vehicle.parameters[param] = value
+                time.sleep(0.2)
+            
+            self.vehicle.flush()
+            time.sleep(1)
+                        
+            # Enable the fence
+            print("Enabling geofence...")
+            self.vehicle.parameters['FENCE_ENABLE'] = 1
+            self.vehicle.flush()
+            time.sleep(1)
+            
+            # Request fence display using newer method
+            self.verify_and_show_fence()
+            
+            # Set flag to indicate fence is uploaded
+            self.fence_uploaded = True
+            
+            # Success
+            return True                
+                
+        except Exception as e:
+            print(f"Error loading geofence: {str(e)}")
+            return False
+        
+    def verify_and_show_fence(self):
+        """Verify fence was uploaded correctly and request visualization"""
+        print("Verifying fence and requesting display...")
+
+        # First verify fence is enabled with correct parameters
+        fence_total = int(self.vehicle.parameters['FENCE_TOTAL'])
+        fence_type = int(self.vehicle.parameters['FENCE_TYPE']) 
+        fence_enabled = int(self.vehicle.parameters['FENCE_ENABLE'])
+        
+        print(f"Fence status: TOTAL={fence_total}, TYPE={fence_type}, ENABLE={fence_enabled}")
+        
+        if fence_total < 3:
+            print("ERROR: Fence has less than 3 points - won't display correctly")
+            return False
+        
+        if not (fence_type & 2):  # Check if polygon bit (bit 1) is set
+            print("WARNING: Fence type doesn't include polygon type (bit 1)")
+            print("Setting fence type to include polygon...")
+            self.vehicle.parameters['FENCE_TYPE'] = fence_type | 2
+            self.vehicle.flush()
+        
+        # Try multiple approaches to ensure the fence is displayed
+        
+        # 1. Using newest MAVLink command to request fence display
+        try:
+            print("Requesting fence display via MAV_CMD_DO_FENCE_ENABLE...")
+            msg = self.vehicle.message_factory.command_long_encode(
+                self.target_system,
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
+                0,  # confirmation
+                3,  # param1: 3 = display fence
+                0, 0, 0, 0, 0, 0  # remaining params
+            )
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+        except Exception as e:
+            print(f"Error sending display command: {e}")
+    
+        # 2. Request fence download to trigger visualization
+        try:
+            print("Requesting fence points download...")
+            for i in range(min(3, fence_total)):  # Get the first few points
+                msg = self.vehicle.message_factory.fence_fetch_point_encode(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    i  # point index
+                )
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                time.sleep(0.1)
+        except Exception as e:
+            print(f"Error requesting fence points: {e}")
+    
+        # 3. Force a parameter change to trigger updates
+        try:
+            print("Forcing parameter changes to trigger fence display...")
+            params_to_toggle = ['FENCE_MARGIN', 'FENCE_RADIUS']
+            
+            for param in params_to_toggle:
+                if param in self.vehicle.parameters:
+                    current = float(self.vehicle.parameters[param])
+                    self.vehicle.parameters[param] = current + 1
+                    self.vehicle.flush()
+                    time.sleep(0.5)
+                    self.vehicle.parameters[param] = current
+                    self.vehicle.flush()
+                    time.sleep(0.5)
+        except Exception as e:
+            print(f"Error toggling parameters: {e}")
+        
+        # 4. Send a status message that might help
+        try:
+            print("Sending status message...")
+            msg = self.vehicle.message_factory.statustext_encode(
+                mavutil.mavlink.MAV_SEVERITY_NOTICE,
+                b"FENCE: Display requested"
+            )
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+        except Exception as e:
+            print(f"Error sending status: {e}")
+        
+        print("Fence verification and display request complete")
+        return True
+    
+    # MM TODO: Previous code for fence setup
     def display_fence(self):
         try:
             # Now interact with MAVProxy using pexpect
@@ -621,7 +878,7 @@ class DroneController:
         self.vehicle.send_mavlink(msg)
         self.vehicle.flush()
     
-    def load_geofence(self):
+    def keep_load_geofence(self):
         try:            
             # First check if fence is already loaded with correct point count
             fence_total = int(self.vehicle.parameters['FENCE_TOTAL'])
