@@ -1,11 +1,12 @@
 #!/bin/bash
-sleep 2
-
 # Create parameter file for MAVProxy
 mkdir -p /tmp
 cat > /tmp/mavproxy_params.txt << 'EOF'
 module load console
 console link 14777
+# Add these to show it's working
+echo "Console module loaded"
+echo "Console link established on port 14777"
 EOF
 
 # Make sure the parameter file has correct permissions
