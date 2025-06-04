@@ -1,3 +1,15 @@
 #!/bin/bash
 sleep 2
-xterm -T "Vehicle Sim" -geometry "90x24+0+500" -e "sim_vehicle.py -N -v ArduCopter --console --map --out=udp:127.0.0.1:14550 --out=udp:127.0.0.1:14551 --cmd=\"module load console; console link 14777\" > /tmp/sim_vehicle.log 2>&1"
+
+# Create parameter file for MAVProxy
+mkdir -p /tmp
+cat > /tmp/mavproxy_params.txt << 'EOF'
+module load console
+console link 14777
+EOF
+
+# Make sure the parameter file has correct permissions
+chmod 644 /tmp/mavproxy_params.txt
+
+# Use it with sim_vehicle
+xterm -T "Vehicle Sim" -geometry "90x24+0+500" -e "sim_vehicle.py -N -v ArduCopter --console --map --out=udp:127.0.0.1:14550 --out=udp:127.0.0.1:14551 --add-param-file=/tmp/mavproxy_params.txt > /tmp/sim_vehicle.log 2>&1"
