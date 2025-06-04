@@ -621,9 +621,9 @@ class DroneController:
             
             # Direct MAVProxy command approach
             # This will rely on the MAVLink forwarding to get to MAVProxy
-            self.send_mavproxy_command("fence list")
+            self.send_mavproxy_fence_command("fence list")
             time.sleep(1)
-            self.send_mavproxy_command("fence show")
+            self.send_mavproxy_fence_command("fence show")
             
             # Set flag to indicate fence is uploaded
             self.fence_uploaded = True
@@ -635,29 +635,49 @@ class DroneController:
             print(f"Error loading geofence: {str(e)}")
             return False
 
-    def send_mavproxy_command(self, command):
-        """Send a command to MAVProxy console via statustext hack"""
-        print(f"Sending MAVProxy command: {command}")
-        try:
-            # Use statustext to send a message that might be displayed in MAVProxy
-            msg = self.vehicle.message_factory.statustext_encode(
-                mavutil.mavlink.MAV_SEVERITY_NOTICE,
-                f"EXEC:{command}".encode()  # Some MAVProxy extensions can execute commands from status text
-            )
-            self.vehicle.send_mavlink(msg)
-            self.vehicle.flush()
+def send_mavproxy_fence_command(self, command):
+    """Send a fence command directly to MAVProxy via dedicated bridge"""
+    print(f"Sending MAVProxy fence command: {command}")
+    try:
+        # Create connection to the fence-specific bridge
+        fence_connection = mavutil.mavlink_connection('udp:127.0.0.1:14570')
+        
+        # Wait for heartbeat to ensure connection
+        fence_connection.wait_heartbeat(timeout=2)
+        
+        if command == "fence show":
+            # Send fence show command using appropriate MAVLink messages
+            fence_connection.mav.command_long_send(
+                1, 0,  # target system, target component
+                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE, 0,  # confirmation
+                1, 0, 0, 0, 0, 0, 0)  # params - enable fence
             
-            # Also try sending a named value float that might trigger fence display
-            if command == "fence show":
-                msg = self.vehicle.message_factory.named_value_float_encode(
-                    0,  # time since boot
-                    "FENCE_SHOW".encode(),
-                    1.0  # value to show fence
+            # Force a fence list and show operation
+            # This can trigger MAVProxy to display the fence
+            for i in range(int(self.vehicle.parameters['FENCE_TOTAL'])):
+                fence_connection.mav.fence_fetch_point_send(
+                    1,  # target_system
+                    0,  # target_component
+                    i   # idx
                 )
-                self.vehicle.send_mavlink(msg)
-                self.vehicle.flush()
-        except Exception as e:
-            print(f"Error sending MAVProxy command: {e}")
+                time.sleep(0.1)
+                
+        elif command == "fence list":
+            # Send fence list command
+            # Request first point to trigger list display
+            fence_connection.mav.fence_fetch_point_send(
+                1,  # target_system
+                0,  # target_component
+                0   # idx - first point
+            )
+            
+        # Close the connection when done
+        fence_connection.close()
+        
+    except Exception as e:
+        print(f"Error sending MAVProxy fence command: {e}")
+
+
     # MM TODO: Previous code for fence setup
     def display_fence(self):
         try:
