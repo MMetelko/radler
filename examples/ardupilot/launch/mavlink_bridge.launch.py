@@ -23,13 +23,4 @@ def generate_launch_description():
                 'gcs_url': LaunchConfiguration('mavlink_bridge_url')
             }]
         )
-        # Add a specific bridge for fence visualization
-        Node(
-            package='mavros',
-            executable='mavros_gcs_bridge',
-            name='mavproxy_fence_bridge',
-            parameters=[{
-                'gcs_url': 'udp://@:14570?to=127.0.0.1:14550'
-            }]
-        )
-    ])
+    ])  # Make sure to close both the list and the LaunchDescription constructor

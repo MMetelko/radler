@@ -3,11 +3,21 @@ import sys
 
 import launch
 import launch_ros.actions
+from launch.actions import SetEnvironmentVariable
 from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
     ld = launch.LaunchDescription([
+        # Set RMW implementation to CycloneDDS
+        # SetEnvironmentVariable(
+        #     name='RMW_IMPLEMENTATION',
+        #     value='rmw_cyclonedds_cpp'
+        # ),
+        # SetEnvironmentVariable(
+        #     name='CYCLONEDDS_URI',
+        #     value='file:///etc/cyclonedds.xml'
+        # ),
         launch.actions.DeclareLaunchArgument(
             name='fcu_url',
             default_value='udp://127.0.0.1:14550@'
@@ -74,7 +84,7 @@ def generate_launch_description():
                 'fcu_protocol': launch.substitutions.LaunchConfiguration('fcu_protocol'),
                 'respawn_mavros': launch.substitutions.LaunchConfiguration('respawn_mavros')
             }.items()
-        )
+        ),
         # Create a MAVLINK bridge to allow the 'dronekit' script communications to be seen by the GCS which communicates with the map and console.
         launch.actions.IncludeLaunchDescription(
             launch.launch_description_sources.PythonLaunchDescriptionSource(

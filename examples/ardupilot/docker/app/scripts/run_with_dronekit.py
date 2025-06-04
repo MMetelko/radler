@@ -545,6 +545,89 @@ class DroneController:
             print(f"Unexpected mission error: {str(e)}")
     
     # MM TODO: Redefining fence setup
+    def test_mavproxy_console_connection(self):
+        """Test if the MAVProxy console connection is working"""
+        try:
+            console_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            console_connection.settimeout(2)
+            console_connection.connect(('127.0.0.1', 14777))
+            
+            # Send a simple status command
+            console_connection.sendall(b"status\n")
+            time.sleep(0.5)
+        
+            # Try to receive response (optional)
+            try:
+                data = console_connection.recv(1024)
+                print(f"MAVProxy console response: {data.decode('utf-8', errors='replace')}")
+            except socket.timeout:
+                print("No response from MAVProxy console (this might be normal)")
+            
+            console_connection.close()
+            print("MAVProxy console connection test successful")
+            return True
+        except Exception as e:
+            print(f"Could not connect to MAVProxy console: {e}")
+            return False
+        
+    def show_fence_on_map(self):
+        """Try multiple methods to make fence visible on map"""
+        try:
+            # Connect to MAVProxy console
+            console_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            console_connection.settimeout(5)
+            console_connection.connect(('127.0.0.1', 14777))
+            
+            # Try multiple commands with clear feedback
+            commands = [
+                "fence list",
+                "fence draw",
+                "fence show",
+                "map",  # Refresh map
+                "param show FENCE_ENABLE",  # Verify fence is enabled
+                "param show FENCE_TYPE",    # Verify fence type
+                "param show FENCE_TOTAL",   # Verify fence point count
+                "fence reload",             # Force reload fence from autopilot
+            ]
+            
+            for cmd in commands:
+                print(f"Sending MAVProxy command: {cmd}")
+                console_connection.sendall(f"{cmd}\n".encode())
+                time.sleep(1)  # Give time for command to process
+            
+            console_connection.close()
+            return True
+        except Exception as e:
+            print(f"Error showing fence on map: {str(e)}")
+            traceback.print_exc()
+            return False
+        
+    # Another thing to try if the above function does not work
+    def show_fence_with_mavproxy(self):
+        """Launch a separate MAVProxy instance to show the fence"""
+        try:
+            # Create a script to launch MAVProxy
+            script_path = "/tmp/show_fence.sh"
+            with open(script_path, "w") as f:
+                f.write("""#!/bin/bash
+    mavproxy.py --master=udp:127.0.0.1:14550 --load-module=map --cmd="fence reload; fence show; fence list" --daemon
+    """)
+            
+            # Make it executable
+            os.chmod(script_path, 0o755)
+            
+            # Run the script
+            subprocess.Popen([script_path], 
+                            stdout=subprocess.PIPE, 
+                            stderr=subprocess.PIPE, 
+                            shell=True)
+            
+            print("Launched separate MAVProxy instance to visualize fence")
+            return True
+        except Exception as e:
+            print(f"Error launching MAVProxy for fence visualization: {str(e)}")
+            return False
+    
     def load_geofence(self):
         try:            
             # First check if fence is already loaded with correct point count
@@ -598,36 +681,26 @@ class DroneController:
             self.vehicle.flush()
             time.sleep(2)  # Give autopilot time to allocate memory for points
             
-            # Simple point-by-point upload with fence type completely disabled using MISSION_ITEM_INT
+            # Upload points one by one using the fence_point_encode method
             for i, point in enumerate(points):
                 lat, lon = map(float, point)
                 print(f"Uploading point {i+1}/{fence_points_total}: {lat}, {lon}")
                 
-                # Convert to int format (multiply by 1e7)
-                lat_int = int(lat * 10000000)
-                lon_int = int(lon * 10000000)
-                
-                # Use MISSION_ITEM_INT instead of deprecated FENCE_POINT
-                msg = self.vehicle.message_factory.mission_item_int_encode(
-                    self.target_system,  # target_system
-                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
-                    i,  # seq
-                    mavutil.mavlink.MAV_FRAME_GLOBAL,  # frame
-                    mavutil.mavlink.MAV_CMD_NAV_FENCE_POLYGON_VERTEX_INCLUSION,  # command
-                    0,  # current - not current waypoint
-                    0,  # autocontinue
-                    0,  # param1 - unused
-                    0,  # param2 - unused
-                    fence_points_total,  # param3 - vertex count
-                    0,  # param4 - unused
-                    lat_int,  # x (latitude in 1e7)
-                    lon_int,  # y (longitude in 1e7)
-                    0  # z (altitude - not used for fence)
+                msg = self.vehicle.message_factory.fence_point_encode(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    i,  # point index
+                    fence_points_total,  # total fence points
+                    lat,
+                    lon
                 )
                 self.vehicle.send_mavlink(msg)
                 self.vehicle.flush()
-                time.sleep(0.5)    
+                time.sleep(0.5)  # Longer delay for reliable delivery
             
+            # Wait for points to be processed
+            time.sleep(3)
+                   
             # Now set the fence parameters
             print("Setting final fence parameters...")
             fence_params = {
@@ -651,20 +724,22 @@ class DroneController:
             time.sleep(2)
             
             # Try to make fence visible on MAP
-            try:
-                # Connect to the console link we set up via MAVProxy
-                console_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                console_connection.settimeout(2)
-                console_connection.connect(('127.0.0.1', 14777))
-                console_connection.sendall(b"fence list\n")
-                time.sleep(0.5)
-                console_connection.sendall(b"fence show\n")
-                console_connection.close()
-                print("Sent commands to display fence on map")
-            except Exception as e:
-                print(f"Could not connect to MAVProxy console: {e}")
-                traceback.print_exc()  # Print full stack trace
-                return False
+            self.test_mavproxy_console_connection()
+            self.show_fence_on_map()
+            # try:
+            #     # Connect to the console link we set up via MAVProxy
+            #     console_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            #     console_connection.settimeout(2)
+            #     console_connection.connect(('127.0.0.1', 14777))
+            #     console_connection.sendall(b"fence list\n")
+            #     time.sleep(0.5)
+            #     console_connection.sendall(b"fence show\n")
+            #     console_connection.close()
+            #     print("Sent commands to display fence on map")
+            # except Exception as e:
+            #     print(f"Could not connect to MAVProxy console: {e}")
+            #     traceback.print_exc()  # Print full stack trace
+            #     return False
         
             # Set flag to indicate fence is uploaded
             self.fence_uploaded = True
