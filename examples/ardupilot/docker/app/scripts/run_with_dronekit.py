@@ -48,12 +48,16 @@ class DroneController:
     def __init__(self, connection_str):
         self.connection_str = connection_str
         self.vehicle = None
+        self.original_home = None
     
     def connect(self):
         self.vehicle = connect(self.connection_str, wait_ready=True, timeout=60)
         self.target_system = self.vehicle._master.target_system
         print(f"Connected to the vehicle with target system ID = {self.target_system}.")
         self.setup_listeners()
+        
+        # Store the original home location after connecting
+        self.original_home = self.vehicle.home_location
 
     def setup_listeners(self):
         @self.vehicle.on_attribute('last_heartbeat')
@@ -664,10 +668,10 @@ class DroneController:
             print(f"Error loading geofence: {str(e)}")
             return False
 
-def send_mavproxy_command(self, command):
-    """Send a command to MAVProxy console via direct connection"""
-    console = MAVProxyConsole(port=14777)  # Use the port specified in SITL startup
-    return console.send_command(command)        
+    def send_mavproxy_command(self, command):
+        """Send a command to MAVProxy console via direct connection"""
+        console = MAVProxyConsole(port=14777)  # Use the port specified in SITL startup
+        return console.send_command(command)        
 
 
     # MM TODO: Previous code for fence setup
@@ -998,22 +1002,48 @@ def send_mavproxy_command(self, command):
         except Exception as e:
             print(f"Error changing mode: {e}")
     
-        # 7. Reset position (only works if SITL supports position reset)
-        try:
-            # Using SITL-specific MAVLink command to reset position
-            # This might not work in all SITL setups
-            self.vehicle._master.mav.command_long_send(
-                self.target_system,
-                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                mavutil.mavlink.MAV_CMD_DO_SET_HOME,
-                0,  # confirmation
-                1,  # Use current position
-                0, 0, 0, 0, 0, 0  # unused
-            )
-            print("Reset home position")
-        except Exception as e:
-            print(f"Position reset not supported: {e}")
+        # 7. Reset vehicle position 
+        if not self.vehicle.armed:
+            try:
+                # Reset vehicle position using SITL-specific command
+                self.vehicle._master.mav.command_long_send(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    mavutil.mavlink.MAV_CMD_DO_SET_POSITION_TARGET_GLOBAL_INT,
+                    0,  # confirmation
+                    0,  # time_boot_ms (0 = now)
+                    0b0000111111111000,  # type_mask (use only lat/lon/alt)
+                    0,  # coordinate frame
+                    int(self.original_home.lat * 1e7),  # lat (degrees * 10^7)
+                    int(self.original_home.lon * 1e7),  # lon (degrees * 10^7)
+                    self.original_home.alt,  # alt (meters)
+                    0, 0, 0,  # velocity x,y,z
+                    0, 0, 0,  # accel x,y,z
+                    0, 0  # yaw, yaw_rate
+                )
+                print(f"Vehicle position reset to original home: lat={self.original_home.lat}, lon={self.original_home.lon}, alt={self.original_home.alt}")
             
+                # Wait for position update to take effect
+                time.sleep(2)
+                
+                # Also reset the home position
+                self.vehicle._master.mav.command_long_send(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    mavutil.mavlink.MAV_CMD_DO_SET_HOME,
+                    0,  # confirmation
+                    0,  # Use specified position
+                    0,  # param2 (unused)
+                    0,  # param3 (unused)
+                    0,  # param4 (unused)
+                    int(self.original_home.lat * 1e7),  # lat (degrees * 10^7)
+                    int(self.original_home.lon * 1e7),  # lon (degrees * 10^7)
+                    self.original_home.alt  # alt (meters)
+                )
+                print("Home position reset to original coordinates")
+            except Exception as e:
+                print(f"Error resetting vehicle position: {e}")
+                    
         # 8. Restart Radler processes if needed
         try:
             self.restart_radler_code()
