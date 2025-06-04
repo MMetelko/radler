@@ -10,8 +10,39 @@ import signal
 import sys
 import pexpect
 import subprocess
+import socket
 
 controller = None
+
+# Used to communicate with the Ardupilot SITL console/map directly (for geofence visibility)
+class MAVProxyConsole:
+    def __init__(self, host='127.0.0.1', port=14777):
+        self.host = host
+        self.port = port
+        
+    def send_command(self, command):
+        """Send a command directly to MAVProxy console"""
+        try:
+            print(f"Sending direct MAVProxy command: {command}")
+            # Create a socket connection
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)  # 5 second timeout
+            
+            # Connect to the MAVProxy console
+            sock.connect((self.host, self.port))
+            
+            # Send the command with newline
+            sock.sendall(f"{command}\n".encode())
+            
+            # Wait briefly for command to process
+            time.sleep(0.5)
+            
+            # Close the connection
+            sock.close()
+            return True
+        except Exception as e:
+            print(f"Failed to send MAVProxy command: {str(e)}")
+            return False
 
 class DroneController:
     def __init__(self, connection_str):
@@ -619,11 +650,9 @@ class DroneController:
             self.vehicle.flush()
             time.sleep(2)
             
-            # Direct MAVProxy command approach
-            # This will rely on the MAVLink forwarding to get to MAVProxy
-            self.send_mavproxy_fence_command("fence list")
-            time.sleep(1)
-            self.send_mavproxy_fence_command("fence show")
+            # Ensure the map shows the fence
+            self.send_mavproxy_command("map follow 1")  # Ensure map is following vehicle
+            self.send_mavproxy_command("fence draw")    # Explicitly draw the fence
             
             # Set flag to indicate fence is uploaded
             self.fence_uploaded = True
@@ -635,47 +664,10 @@ class DroneController:
             print(f"Error loading geofence: {str(e)}")
             return False
 
-def send_mavproxy_fence_command(self, command):
-    """Send a fence command directly to MAVProxy via dedicated bridge"""
-    print(f"Sending MAVProxy fence command: {command}")
-    try:
-        # Create connection to the fence-specific bridge
-        fence_connection = mavutil.mavlink_connection('udp:127.0.0.1:14570')
-        
-        # Wait for heartbeat to ensure connection
-        fence_connection.wait_heartbeat(timeout=2)
-        
-        if command == "fence show":
-            # Send fence show command using appropriate MAVLink messages
-            fence_connection.mav.command_long_send(
-                1, 0,  # target system, target component
-                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE, 0,  # confirmation
-                1, 0, 0, 0, 0, 0, 0)  # params - enable fence
-            
-            # Force a fence list and show operation
-            # This can trigger MAVProxy to display the fence
-            for i in range(int(self.vehicle.parameters['FENCE_TOTAL'])):
-                fence_connection.mav.fence_fetch_point_send(
-                    1,  # target_system
-                    0,  # target_component
-                    i   # idx
-                )
-                time.sleep(0.1)
-                
-        elif command == "fence list":
-            # Send fence list command
-            # Request first point to trigger list display
-            fence_connection.mav.fence_fetch_point_send(
-                1,  # target_system
-                0,  # target_component
-                0   # idx - first point
-            )
-            
-        # Close the connection when done
-        fence_connection.close()
-        
-    except Exception as e:
-        print(f"Error sending MAVProxy fence command: {e}")
+def send_mavproxy_command(self, command):
+    """Send a command to MAVProxy console via direct connection"""
+    console = MAVProxyConsole(port=14777)  # Use the port specified in SITL startup
+    return console.send_command(command)        
 
 
     # MM TODO: Previous code for fence setup
