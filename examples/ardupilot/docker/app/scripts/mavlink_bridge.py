@@ -7,7 +7,7 @@ import sys
 import time
 
 def main():
-    # Define endpoints
+    # Define endpoints - these are the destinations we're forwarding TO
     endpoint1 = ('127.0.0.1', 14551)  # Dronekit side
     endpoint2 = ('127.0.0.1', 14550)  # MAVProxy/SITL side
 
@@ -15,15 +15,33 @@ def main():
     sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    # Bind sockets
-    sock1.bind(('0.0.0.0', 14551))
-    sock2.bind(('0.0.0.0', 14550))
+    # Configure sockets
+    sock1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock2.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    
+    # Bind sockets to different ports to avoid conflicts
+    try:
+        sock1.bind(('0.0.0.0', 14560))  # Use different port to avoid conflict
+        print("Bound to port 14560 for endpoint 1")
+    except Exception as e:
+        print(f"Could not bind to port 14560: {e}. Using random port.")
+        sock1.bind(('0.0.0.0', 0))
+        print(f"Using port {sock1.getsockname()[1]} instead")
+        
+    try:
+        sock2.bind(('0.0.0.0', 14570))  # Use different port to avoid conflict
+        print("Bound to port 14570 for endpoint 2")
+    except Exception as e:
+        print(f"Could not bind to port 14570: {e}. Using random port.")
+        sock2.bind(('0.0.0.0', 0))
+        print(f"Using port {sock2.getsockname()[1]} instead")
 
     print(f"Starting MAVLink bridge: {endpoint1} <--> {endpoint2}")
+    print(f"Bridge listening on: {sock1.getsockname()} and {sock2.getsockname()}")
 
     # Create threads for each direction
-    threading.Thread(target=forward_packets, args=(sock1, endpoint2, "1->2"), daemon=True).start()
-    threading.Thread(target=forward_packets, args=(sock2, endpoint1, "2->1"), daemon=True).start()
+    threading.Thread(target=forward_packets, args=(sock1, endpoint2, "DRONEKIT->SITL"), daemon=True).start()
+    threading.Thread(target=forward_packets, args=(sock2, endpoint1, "SITL->DRONEKIT"), daemon=True).start()
 
     try:
         # Keep main thread alive

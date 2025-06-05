@@ -12,6 +12,7 @@ import pexpect
 import subprocess
 import socket
 import traceback
+import threading
 
 
 controller = None
@@ -51,8 +52,13 @@ class DroneController:
         self.connection_str = connection_str
         self.vehicle = None
         self.original_home = None
+        self.bridge_thread = None
+        self.bridge_process = None
+        self.fence_uploaded = False
     
     def connect(self):
+        self.start_mavlink_bridge()
+        
         self.vehicle = connect(self.connection_str, wait_ready=True, timeout=60)
         self.target_system = self.vehicle._master.target_system
         print(f"Connected to the vehicle with target system ID = {self.target_system}.")
@@ -83,6 +89,30 @@ class DroneController:
                 time.sleep(5)
         print("Failed to reconnect after maximum attempts.")
         return False
+    
+    def start_mavlink_bridge(self):        
+        def run_bridge():
+            try:
+                bridge_script = "/app-novnc/scripts/mavlink_bridge.py"
+                log_file = open("/tmp/bridge.log", "w")
+                self.bridge_process = subprocess.Popen(
+                    ['python3', bridge_script],
+                    stdout=log_file,
+                    stderr=log_file,
+                    text=True
+                )
+                print(f"Started MAVLink bridge with PID {self.bridge_process.pid}")
+                self.bridge_process.wait()
+            except Exception as e:
+                print(f"Bridge process error: {e}")
+        
+        # Start bridge in background thread
+        self.bridge_thread = threading.Thread(target=run_bridge, daemon=True)
+        self.bridge_thread.start()
+        print("Started MAVLink bridge in background")
+        
+        # Give it a moment to initialize
+        time.sleep(2)
        
     def arm_and_takeoff(self, aTargetAltitude):
         """
@@ -1021,6 +1051,32 @@ class DroneController:
     def restart_radler_code(self):
         subprocess.run(["pkill", "-f", "afs_function"])
         subprocess.run(["pkill", "-f", "afs_gateway"])
+        
+    def reset_vehicle_position(self):
+        """Reset vehicle position in SITL by connecting directly to the SITL interface"""
+        try:
+            import socket
+            # Connect to SITL
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('127.0.0.1', 5501))  # Default SITL control port
+            
+            if hasattr(self, 'original_home') and self.original_home is not None:
+                # Format position command: position,lat,lon,alt
+                cmd = f"position,{self.original_home.lat},{self.original_home.lon},{self.original_home.alt}\n"
+                s.send(cmd.encode())
+                print(f"Vehicle position reset via SITL interface to: {self.original_home.lat}, {self.original_home.lon}, {self.original_home.alt}")
+            else:
+                # If we don't have stored coordinates, use default SITL home
+                cmd = "home\n"
+                s.send(cmd.encode())
+                print("Vehicle position reset to default SITL home position")
+                
+            s.close()
+            
+            # Give SITL time to process
+            time.sleep(1)
+        except Exception as e:
+            print(f"Failed to reset position via SITL: {e}")
 
     # Reset battery
     def reset_simulation(self):
@@ -1095,45 +1151,8 @@ class DroneController:
     
         # 7. Reset vehicle position 
         if not self.vehicle.armed:
-            try:
-                # Reset vehicle position using SITL-specific command
-                self.vehicle._master.mav.command_long_send(
-                    self.target_system,
-                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                    mavutil.mavlink.MAV_CMD_DO_SET_POSITION_TARGET_GLOBAL_INT,
-                    0,  # confirmation
-                    0,  # time_boot_ms (0 = now)
-                    0b0000111111111000,  # type_mask (use only lat/lon/alt)
-                    0,  # coordinate frame
-                    int(self.original_home.lat * 1e7),  # lat (degrees * 10^7)
-                    int(self.original_home.lon * 1e7),  # lon (degrees * 10^7)
-                    self.original_home.alt,  # alt (meters)
-                    0, 0, 0,  # velocity x,y,z
-                    0, 0, 0,  # accel x,y,z
-                    0, 0  # yaw, yaw_rate
-                )
-                print(f"Vehicle position reset to original home: lat={self.original_home.lat}, lon={self.original_home.lon}, alt={self.original_home.alt}")
-            
-                # Wait for position update to take effect
-                time.sleep(2)
-                
-                # Also reset the home position
-                self.vehicle._master.mav.command_long_send(
-                    self.target_system,
-                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                    mavutil.mavlink.MAV_CMD_DO_SET_HOME,
-                    0,  # confirmation
-                    0,  # Use specified position
-                    0,  # param2 (unused)
-                    0,  # param3 (unused)
-                    0,  # param4 (unused)
-                    int(self.original_home.lat * 1e7),  # lat (degrees * 10^7)
-                    int(self.original_home.lon * 1e7),  # lon (degrees * 10^7)
-                    self.original_home.alt  # alt (meters)
-                )
-                print("Home position reset to original coordinates")
-            except Exception as e:
-                print(f"Error resetting vehicle position: {e}")
+            # Reset position using direct SITL interface
+            self.reset_vehicle_position()
                     
         # 8. Restart Radler processes if needed
         try:
@@ -1178,11 +1197,38 @@ class DroneController:
         print("Ardupilot system has been rebooted")
     
     def close(self):
-        if self.vehicle is not None:
+        if self.vehicle is not None:            
             print("Closing vehicle connection")
             self.vehicle.close()
             print("Vehicle connection closed.")
             self.vehicle = None
+            
+        # Terminate bridge process if it exists
+        if self.bridge_process:
+            try:
+                print("Terminating bridge process...")
+                self.bridge_process.terminate()
+                # Optional: Wait briefly to ensure termination
+                import time
+                time.sleep(0.5)
+                
+                # If it's still running, try to kill it
+                if self.bridge_process.poll() is None:
+                    self.bridge_process.kill()
+                    print("Killed bridge process")
+            except Exception as e:
+                print(f"Error terminating bridge process: {e}")
+                # Fallback: Try to kill any bridge processes
+                try:
+                    import subprocess
+                    subprocess.call(['pkill', '-f', 'mavlink_bridge.py'])
+                    print("Terminated all bridge processes")
+                except Exception as e2:
+                    print(f"Error during process cleanup: {e2}")
+        
+        # The bridge_thread is daemon=True so Python won't wait for it to finish
+        # when the main program exits
+        print("Cleanup complete")    
 
 
 def main():
@@ -1229,7 +1275,11 @@ def main():
     print(f"Connecting to vehicle on: {vehicle_connection}")
     
     try:
-        controller = DroneController(vehicle_connection)
+        controller = DroneController(vehicle_connection)    
+        controller.start_mavlink_bridge()
+        # Wait a moment for bridge to initialize
+        time.sleep(2)
+        
         controller.connect()
         
         # Set up signal handler after creating controller
