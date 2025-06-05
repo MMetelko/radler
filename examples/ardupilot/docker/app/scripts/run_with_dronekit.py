@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import argparse
-from dronekit import connect, VehicleMode, LocationGlobalRelative, Command
+from dronekit import connect, VehicleMode, LocationGlobalRelative, Command, LocationGlobal
 import time
 from math import radians, cos
 from pymavlink import mavutil
@@ -51,7 +51,7 @@ class DroneController:
     def __init__(self, connection_str):
         self.connection_str = connection_str
         self.vehicle = None
-        self.original_home = None
+        self.original_launch_location = None
         self.bridge_thread = None
         self.bridge_process = None
         self.fence_uploaded = False
@@ -64,8 +64,24 @@ class DroneController:
         print(f"Connected to the vehicle with target system ID = {self.target_system}.")
         self.setup_listeners()
         
-        # Store the original home location after connecting
-        self.original_home = self.vehicle.home_location
+        # Wait for a valid position before storing the original launch location
+        wait_time = 0
+        while wait_time < 30:
+            if self.vehicle.location.global_frame.lat != 0:  # Check for valid position
+                # Store the original launch location as soon as we have valid coordinates
+                self.original_launch_location = LocationGlobal(
+                    self.vehicle.location.global_frame.lat,
+                    self.vehicle.location.global_frame.lon,
+                    self.vehicle.location.global_frame.alt
+                )
+                print(f"Original launch location stored: {self.original_launch_location.lat}, "
+                    f"{self.original_launch_location.lon}, {self.original_launch_location.alt}")
+                break
+            time.sleep(1)
+            wait_time += 1
+            
+        if self.original_launch_location is None:
+            print("Warning: Failed to get original launch location")
 
     def setup_listeners(self):
         @self.vehicle.on_attribute('last_heartbeat')
@@ -501,6 +517,20 @@ class DroneController:
             print(f"Error uploading mission: {str(e)}")
             return False
                 
+    def synchronize_mission(self):
+        """Force mission synchronization between all components"""
+        try:
+            print("Synchronizing mission...")
+            mission_items = self.vehicle.commands
+            mission_items.download()
+            mission_items.wait_ready()
+            mission_items.upload()
+            print("Mission synchronized")
+            return True
+        except Exception as e:
+            print(f"Error synchronizing mission: {e}")
+            return False
+    
     def load_mission_waypoints(self):
         try:
             mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
@@ -565,7 +595,11 @@ class DroneController:
                         print(f"Uploaded coordinates (x,y,z): {uploaded_mission[i + 1].x}, {uploaded_mission[i + 1].y}, {uploaded_mission[i + 1].z}")
                         print(f"Cmds coordinates (x,y,z): {cmds[i].x}, {cmds[i].y}, {cmds[i].z}")
                         return False
+                   
                 print("Mission verified successfully")
+                # Upload to synchronize mission items between all components
+                cmds.upload()    
+                print("Mission synchronized") 
                 return True
             else:
                 print(f"Mission verification failed: waypoint count mismatch.  Uploaded = {num_uploaded_wp}, Found = {num_cmds_wp}")
@@ -1060,21 +1094,24 @@ class DroneController:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(('127.0.0.1', 5501))  # Default SITL control port
             
-            if hasattr(self, 'original_home') and self.original_home is not None:
-                # Format position command: position,lat,lon,alt
-                cmd = f"position,{self.original_home.lat},{self.original_home.lon},{self.original_home.alt}\n"
+            if hasattr(self, 'original_launch_location') and self.original_launch_location is not None:
+                # Reset position using exact coordinates from launch
+                cmd = f"position,{self.original_launch_location.lat},{self.original_launch_location.lon},{self.original_launch_location.alt}\n"
                 s.send(cmd.encode())
-                print(f"Vehicle position reset via SITL interface to: {self.original_home.lat}, {self.original_home.lon}, {self.original_home.alt}")
+                print(f"Vehicle position reset via SITL interface to original launch coordinates: "
+                    f"{self.original_launch_location.lat}, {self.original_launch_location.lon}, {self.original_launch_location.alt}")
+                
+                # Also send a separate "home" reset command
+                cmd = f"home,{self.original_launch_location.lat},{self.original_launch_location.lon},{self.original_launch_location.alt},0\n"
+                s.send(cmd.encode())
+                print("Home position reset to original launch coordinates")
             else:
-                # If we don't have stored coordinates, use default SITL home
-                cmd = "home\n"
-                s.send(cmd.encode())
-                print("Vehicle position reset to default SITL home position")
+                print("Error: No original launch location stored, cannot reset position")
                 
             s.close()
             
             # Give SITL time to process
-            time.sleep(1)
+            time.sleep(2)
         except Exception as e:
             print(f"Failed to reset position via SITL: {e}")
 
@@ -1276,7 +1313,6 @@ def main():
     
     try:
         controller = DroneController(vehicle_connection)    
-        controller.start_mavlink_bridge()
         # Wait a moment for bridge to initialize
         time.sleep(2)
         
