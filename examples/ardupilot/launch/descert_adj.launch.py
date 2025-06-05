@@ -60,10 +60,10 @@ def generate_launch_description():
                 'plugin_sys_status_yaml': get_package_share_directory('mavros') + '/launch/plugin_sys_status.yaml',
                 'plugin_imu_yaml': get_package_share_directory('mavros') + '/launch/plugin_imu.yaml',
                 'plugin_cmd_yaml': get_package_share_directory('mavros') + '/launch/plugin_cmd.yaml',
-                'plugin_battery_yaml': get_package_share_directory('mavros') + '/launch/plugin_battery.yaml',
-                'plugin_gps_yaml': get_package_share_directory('mavros') + '/launch/plugin_gps.yaml',
-                'plugin_waypoint_yaml': get_package_share_directory('mavros') + '/launch/plugin_waypoint.yaml',
-                'plugin_diagnostics_yaml': get_package_share_directory('mavros') + '/launch/plugin_diagnostics.yaml',
+                #'plugin_battery_yaml': get_package_share_directory('mavros') + '/launch/plugin_battery.yaml',
+                #'plugin_gps_yaml': get_package_share_directory('mavros') + '/launch/plugin_gps.yaml',
+                #'plugin_waypoint_yaml': get_package_share_directory('mavros') + '/launch/plugin_waypoint.yaml',
+                #'plugin_diagnostics_yaml': get_package_share_directory('mavros') + '/launch/plugin_diagnostics.yaml',
                 'mavros_config_yaml': get_package_share_directory('mavros') + '/launch/mavros_config.yaml',
                 'config_yaml': get_package_share_directory('mavros') + '/launch/descert_config.yaml',
                 'global_position_config_yaml': get_package_share_directory('mavros') + '/launch/global_position_config.yaml',
@@ -72,10 +72,10 @@ def generate_launch_description():
                 'sys_status_config_yaml': get_package_share_directory('mavros') + '/launch/sys_status_config.yaml',
                 'imu_config_yaml': get_package_share_directory('mavros') + '/launch/imu_config.yaml',
                 'cmd_config_yaml': get_package_share_directory('mavros') + '/launch/cmd_config.yaml',
-                'battery_config_yaml': get_package_share_directory('mavros') + '/launch/battery_config.yaml',
-                'gps_config_yaml': get_package_share_directory('mavros') + '/launch/gps_config.yaml',
-                'waypoint_config_yaml': get_package_share_directory('mavros') + '/launch/waypoint_config.yaml',
-                'diagnostics_config_yaml': get_package_share_directory('mavros') + '/launch/diagnostics_config.yaml',
+                #'battery_config_yaml': get_package_share_directory('mavros') + '/launch/battery_config.yaml',
+                #'gps_config_yaml': get_package_share_directory('mavros') + '/launch/gps_config.yaml',
+                #'waypoint_config_yaml': get_package_share_directory('mavros') + '/launch/waypoint_config.yaml',
+                #'diagnostics_config_yaml': get_package_share_directory('mavros') + '/launch/diagnostics_config.yaml',
                 'fcu_url': launch.substitutions.LaunchConfiguration('fcu_url'),
                 'gcs_url': launch.substitutions.LaunchConfiguration('gcs_url'),
                 'tgt_system': launch.substitutions.LaunchConfiguration('tgt_system'),
@@ -83,15 +83,6 @@ def generate_launch_description():
                 'log_output': launch.substitutions.LaunchConfiguration('log_output'),
                 'fcu_protocol': launch.substitutions.LaunchConfiguration('fcu_protocol'),
                 'respawn_mavros': launch.substitutions.LaunchConfiguration('respawn_mavros')
-            }.items()
-        ),
-        # Create a MAVLINK bridge to allow the 'dronekit' script communications to be seen by the GCS which communicates with the map and console.
-        launch.actions.IncludeLaunchDescription(
-            launch.launch_description_sources.PythonLaunchDescriptionSource(
-                os.path.join(get_package_share_directory('mavros'), 'launch/mavlink_bridge.launch.py')
-            ),
-            launch_arguments={
-                'mavlink_bridge_url': 'udp://@:14560?to=127.0.0.1:14551'
             }.items()
         )
     ])
