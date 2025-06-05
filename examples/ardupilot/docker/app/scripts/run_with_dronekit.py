@@ -635,6 +635,54 @@ class DroneController:
             return False
     
     # MM TODO: Redefining fence setup 
+    def show_fence_via_mavlink(self):
+        """Make fence visible through existing vehicle connection"""
+        try:
+            print("Making fence visible through existing vehicle connection...")
+            
+            # Get current fence parameters
+            fence_total = int(self.vehicle.parameters.get('FENCE_TOTAL', 0))
+            
+            if fence_total > 0:
+                print(f"Making fence with {fence_total} points visible")
+                
+                # Approach 1: Toggle FENCE_ENABLE parameter (this has been working reliably)
+                current_enable = int(self.vehicle.parameters.get('FENCE_ENABLE', 0))
+                print(f"Toggling fence visibility (current state: {current_enable})")
+                
+                # Disable fence briefly
+                self.vehicle.parameters['FENCE_ENABLE'] = 0
+                self.vehicle.flush()
+                time.sleep(0.5)
+            
+                # Re-enable fence
+                self.vehicle.parameters['FENCE_ENABLE'] = 1
+                self.vehicle.flush()
+                time.sleep(0.5)
+                
+                # Approach 2: Send a DO_FENCE_ENABLE command (modern approach)
+                msg = self.vehicle.message_factory.command_long_encode(
+                    self.target_system,  # target system
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,  # target component
+                    mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,  # command
+                    0,  # confirmation
+                    1,  # enable
+                    0, 0, 0, 0, 0, 0  # params 2-7 (not used)
+                )
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                
+                print("Sent fence visibility commands via existing vehicle connection")
+                return True
+            else:
+                print("No fence points to display")
+                return False
+                
+        except Exception as e:
+            print(f"Error making fence visible via MAVLink: {e}")
+            traceback.print_exc()
+            return False
+    
     def load_geofence(self):
         try:            
             # First check if fence is already loaded with correct point count
@@ -734,7 +782,7 @@ class DroneController:
             time.sleep(2)
             
             # Try to make fence visible on MAP
-            self.show_fence_on_map()
+            self.show_fence_via_mavlink()
          
             # Set flag to indicate fence is uploaded
             self.fence_uploaded = True
@@ -1087,34 +1135,258 @@ class DroneController:
         subprocess.run(["pkill", "-f", "afs_gateway"])
         
     def reset_vehicle_position(self):
-        """Reset vehicle position in SITL by connecting directly to the SITL interface"""
+        """Reset vehicle position using MAVLink commands through the bridge"""
         try:
-            import socket
-            # Connect to SITL
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('127.0.0.1', 5501))  # Default SITL control port
+            print("Resetting vehicle position via MAVLink...")
+            
+            # Switch to GUIDED for position commands
+            previous_mode = self.vehicle.mode.name
+            print(f"Changing from {previous_mode} to GUIDED mode for position commands...")
+            self.vehicle.mode = VehicleMode("GUIDED")
+            time.sleep(0.5)
             
             if hasattr(self, 'original_launch_location') and self.original_launch_location is not None:
-                # Reset position using exact coordinates from launch
-                cmd = f"position,{self.original_launch_location.lat},{self.original_launch_location.lon},{self.original_launch_location.alt}\n"
-                s.send(cmd.encode())
-                print(f"Vehicle position reset via SITL interface to original launch coordinates: "
-                    f"{self.original_launch_location.lat}, {self.original_launch_location.lon}, {self.original_launch_location.alt}")
+                # Step 1: Send SET_HOME_POSITION command to reset home
+                msg = self.vehicle.message_factory.command_long_encode(
+                    self.target_system,  # target_system
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
+                    mavutil.mavlink.MAV_CMD_DO_SET_HOME,  # command
+                    0,  # confirmation
+                    0,  # Set home to specified location (not current location)
+                    0,  # param2 (not used)
+                    0,  # param3 (not used)
+                    0,  # param4 (not used)
+                    self.original_launch_location.lat,  # latitude
+                    self.original_launch_location.lon,  # longitude
+                    self.original_launch_location.alt   # altitude
+                )
                 
-                # Also send a separate "home" reset command
-                cmd = f"home,{self.original_launch_location.lat},{self.original_launch_location.lon},{self.original_launch_location.alt},0\n"
-                s.send(cmd.encode())
-                print("Home position reset to original launch coordinates")
+                # Send command
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                print(f"Home position reset to original coordinates: {self.original_launch_location.lat}, "
+                    f"{self.original_launch_location.lon}, {self.original_launch_location.alt}")
+                
+                # Step 2: For position reset, we can use SET_POSITION_TARGET_GLOBAL_INT
+                # First make sure EKF origin is set
+                msg = self.vehicle.message_factory.command_long_encode(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+                    0,
+                    mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
+                    1000000,  # 1 second interval
+                    0, 0, 0, 0, 0
+                )
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                time.sleep(1)
+            
+                # Step 3: If needed, reset EKF origin
+                msg = self.vehicle.message_factory.command_long_encode(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    mavutil.mavlink.MAV_CMD_DO_SET_HOME,
+                    0,
+                    1,  # Use current position
+                    0, 0, 0, 0, 0, 0
+                )
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                
+                # Step 4: Set the position
+                # Convert lat/lon from degrees to degrees*1e7 for the message
+                lat_int = int(self.original_launch_location.lat * 1e7)
+                lon_int = int(self.original_launch_location.lon * 1e7)
+                alt_int = int(self.original_launch_location.alt * 1000)  # mm
+            
+                msg = self.vehicle.message_factory.set_position_target_global_int_encode(
+                    0,  # time_boot_ms
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    mavutil.mavlink.MAV_FRAME_GLOBAL_INT,  # coordinate frame
+                    0b0000111111111000,  # type_mask (only use position)
+                    lat_int,  # lat_int
+                    lon_int,  # lon_int
+                    alt_int,  # alt
+                    0, 0, 0,  # velocity
+                    0, 0, 0,  # acceleration
+                    0, 0      # yaw, yaw_rate
+                )
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                
+                # Step 5: For SITL specifically, try a custom command
+                try:
+                    custom_msg = self.vehicle.message_factory.command_long_encode(
+                        self.target_system,
+                        mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                        42501,  # MAV_CMD_DO_SITL_SET_POSITION (custom command for SITL)
+                        0,
+                        self.original_launch_location.lat,
+                        self.original_launch_location.lon,
+                        self.original_launch_location.alt,
+                        0, 0, 0, 0
+                    )
+                    self.vehicle.send_mavlink(custom_msg)
+                    self.vehicle.flush()
+                    print("Sent SITL position reset command via MAVLink")
+                except:
+                    print("Custom SITL position command not supported, continuing")
+                
+                print("Position reset commands sent via MAVLink")
+                
+                # Give system time to process commands
+                time.sleep(2)
+                
+                # Don't restore the original mode - let reset_simulation handle it
+                print("Position reset complete, leaving in GUIDED mode for remaining reset steps")
+                
+                return True
             else:
                 print("Error: No original launch location stored, cannot reset position")
-                
-            s.close()
+                return False
             
-            # Give SITL time to process
-            time.sleep(2)
         except Exception as e:
-            print(f"Failed to reset position via SITL: {e}")
+            print(f"Failed to reset position via MAVLink: {e}")
+            
+            # Fallback to direct SITL interface if MAVLink approach fails
+            print("Attempting fallback to direct SITL interface...")
+            try:
+                import socket
+                # Connect to SITL
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(('127.0.0.1', 5501))  # Default SITL control port
+                
+                if hasattr(self, 'original_launch_location') and self.original_launch_location is not None:
+                    # Reset position using exact coordinates from launch
+                    cmd = f"position,{self.original_launch_location.lat},{self.original_launch_location.lon},{self.original_launch_location.alt}\n"
+                    s.send(cmd.encode())
+                    
+                    # Also send a separate "home" reset command
+                    cmd = f"home,{self.original_launch_location.lat},{self.original_launch_location.lon},{self.original_launch_location.alt},0\n"
+                    s.send(cmd.encode())
+                    print("Position reset via fallback SITL interface")
+                    
+                    s.close()
+                    return True
+                else:
+                    print("Error: No original launch location stored, cannot reset position")
+                    return False
+                
+            except Exception as e2:
+                print(f"Fallback also failed: {e2}")
+                return False
 
+    def reset_rc_channels(self):
+        """Reset RC channels to neutral/minimum values with verification"""
+        try:
+            print("Resetting RC channels to neutral positions...")
+            
+            # Method 1: Using rc_channels_override_send
+            self.vehicle._master.mav.rc_channels_override_send(
+                self.vehicle._master.target_system,
+                self.vehicle._master.target_component,
+                1500, 1500, 1000, 1500, 1500, 1500, 1500, 1500
+            )
+            self.vehicle.flush()
+            time.sleep(1)
+            
+            # Verify Method 1
+            if self.verify_rc_channels():
+                print("RC channels reset successful with Method 1")
+                return True
+                
+            print("Method 1 didn't fully reset RC channels, trying Method 2...")
+            
+            # Method 2: Using command_long approach
+            msg = self.vehicle.message_factory.command_long_encode(
+                self.target_system,
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                mavutil.mavlink.MAV_CMD_DO_RC_OVERRIDE,
+                0, 0, 0, 0, 0, 0, 0, 0
+            )
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+            time.sleep(1)
+            
+            # Verify Method 2
+            if self.verify_rc_channels():
+                print("RC channels reset successful with Method 2")
+                return True
+                
+            print("Method 2 didn't fully reset RC channels, trying Method 3...")
+        
+            # Method 3: Clear and then set specific values
+            self.vehicle._master.mav.rc_channels_override_send(
+                self.vehicle._master.target_system,
+                self.vehicle._master.target_component,
+                0, 0, 0, 0, 0, 0, 0, 0
+            )
+            self.vehicle.flush()
+            time.sleep(1)
+            
+            self.vehicle._master.mav.rc_channels_override_send(
+                self.vehicle._master.target_system,
+                self.vehicle._master.target_component,
+                1500, 1500, 1000, 1500, 1500, 1500, 1500, 1500
+            )
+            self.vehicle.flush()
+            time.sleep(1)
+            
+            # Final verification
+            if self.verify_rc_channels():
+                print("RC channels reset successful with Method 3")
+                return True
+            
+            print("Warning: All RC channel reset methods attempted without full success")
+            return False
+            
+        except Exception as e:
+            print(f"Error resetting RC channels: {e}")
+            return False
+        
+    def verify_rc_channels(self):
+        """Verify that RC channels are at neutral/expected values"""
+        try:
+            # Request RC channels reading
+            self.vehicle._master.mav.request_data_stream_send(
+                self.vehicle._master.target_system,
+                self.vehicle._master.target_component,
+                mavutil.mavlink.MAV_DATA_STREAM_RC_CHANNELS,
+                10,  # 10 Hz
+                1    # Start
+            )
+            
+            # Wait for RC_CHANNELS message
+            msg = self.vehicle._master.recv_match(
+                type='RC_CHANNELS', 
+                blocking=True, 
+                timeout=2
+            )
+            
+            if msg is None:
+                print("Could not get RC channel readings")
+                return False
+                
+            # Check if channels are at expected values (with some tolerance)
+            roll_ok = abs(msg.chan1_raw - 1500) < 50
+            pitch_ok = abs(msg.chan2_raw - 1500) < 50
+            throttle_ok = abs(msg.chan3_raw - 1000) < 50
+            yaw_ok = abs(msg.chan4_raw - 1500) < 50
+            
+            print(f"RC status: Roll={msg.chan1_raw} ({roll_ok}), "
+                f"Pitch={msg.chan2_raw} ({pitch_ok}), "
+                f"Throttle={msg.chan3_raw} ({throttle_ok}), "
+                f"Yaw={msg.chan4_raw} ({yaw_ok})")
+            
+            # Return true only if all channels are at expected values
+            return roll_ok and pitch_ok and throttle_ok and yaw_ok
+        
+        except Exception as e:
+            print(f"Error verifying RC channels: {e}")
+            return False
+    
     # Reset battery
     def reset_simulation(self):
         """
@@ -1131,17 +1403,34 @@ class DroneController:
                 time.sleep(2)
         except Exception as e:
             print(f"Mode change error: {e}")
+            
+        # 2. Reset RC channels more aggressively by calling multiple times
+        print("Resetting RC channels...")
+        success = self.reset_rc_channels()
+        
+        # If the first attempt didn't fully succeed, try once more
+        if not success:
+            print("First RC reset attempt didn't fully succeed, trying again...")
+            time.sleep(2)  # Give system time to settle
+            self.reset_rc_channels()
 
-        # 2. Disarm the vehicle if armed
+        # 3. Disarm the vehicle if armed
         if self.vehicle.armed:
             print("Disarming vehicle...")
+            # Reset RC channels to neutral before attempting to arm
+            self.reset_rc_channels()
             self.vehicle.armed = False
             start_time = time.time()
             while self.vehicle.armed and time.time() - start_time < 10:
                 print("Waiting for disarm...")
                 time.sleep(1)
 
-        # 3. Reset mission to first waypoint
+        # 4. Reset vehicle position 
+        if not self.vehicle.armed:
+            # Reset position using direct SITL interface
+            self.reset_vehicle_position()                    
+
+        # 5. Reset mission to first waypoint
         try:
             msg = self.vehicle.message_factory.mission_set_current_encode(
                 self.target_system, 
@@ -1154,21 +1443,21 @@ class DroneController:
         except Exception as e:
             print(f"Error resetting mission: {e}")
 
-        # 4. Reset the battery level
+        # 6. Reset the battery level
         try:
             self.send_batreset()
             print("Battery level reset to 100%")
         except Exception as e:
             print(f"Error resetting battery: {e}")
 
-        # 5. Ensure GPS is enabled
+        # 7. Ensure GPS is enabled
         try:
             self.config_gps_enable_param(True)
             print("GPS enabled")
         except Exception as e:
             print(f"Error enabling GPS: {e}")
         
-        # 6. Set to STABILIZE mode (basic, safe mode)
+        # 8. Set to STABILIZE mode (basic, safe mode)
         try:
             print("Switching to STABILIZE mode...")
             self.vehicle.mode = VehicleMode("STABILIZE")
@@ -1186,12 +1475,7 @@ class DroneController:
         except Exception as e:
             print(f"Error changing mode: {e}")
     
-        # 7. Reset vehicle position 
-        if not self.vehicle.armed:
-            # Reset position using direct SITL interface
-            self.reset_vehicle_position()
-                    
-        # 8. Restart Radler processes if needed
+        # 9. Restart Radler processes if needed
         try:
             self.restart_radler_code()
             print("Radler processes restarted")
