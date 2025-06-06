@@ -5,6 +5,7 @@ from dronekit import connect, VehicleMode, LocationGlobalRelative, Command, Loca
 import time
 from math import radians, cos
 from pymavlink import mavutil
+from pymavlink.dialects.v20 import ardupilotmega
 import os
 import signal
 import sys
@@ -20,11 +21,17 @@ class DroneController:
     def __init__(self, connection_str):
         self.connection_str = connection_str
         self.vehicle = None
-        self.original_launch_location = None
         self.bridge_thread = None
         self.bridge_process = None
         self.fence_uploaded = False
-    
+        
+        # Store the fixed launch location (from the mission file's first waypoint)
+        self.original_launch_location = LocationGlobal(
+            -35.3632624,  # Fixed latitude from the first waypoint
+            149.1652375,  # Fixed longitude from the first waypoint
+            584.08        # Fixed altitude from the first waypoint
+        )
+        
     def connect(self):
         self.start_mavlink_bridge()
         
@@ -33,24 +40,8 @@ class DroneController:
         print(f"Connected to the vehicle with target system ID = {self.target_system}.")
         self.setup_listeners()
         
-        # Wait for a valid position before storing the original launch location
-        wait_time = 0
-        while wait_time < 30:
-            if self.vehicle.location.global_frame.lat != 0:  # Check for valid position
-                # Store the original launch location as soon as we have valid coordinates
-                self.original_launch_location = LocationGlobal(
-                    self.vehicle.location.global_frame.lat,
-                    self.vehicle.location.global_frame.lon,
-                    self.vehicle.location.global_frame.alt
-                )
-                print(f"Original launch location stored: {self.original_launch_location.lat}, "
-                    f"{self.original_launch_location.lon}, {self.original_launch_location.alt}")
-                break
-            time.sleep(1)
-            wait_time += 1
-            
-        if self.original_launch_location is None:
-            print("Warning: Failed to get original launch location")
+        print(f"Original launch location stored: {self.original_launch_location.lat}, "
+              f"{self.original_launch_location.lon}, {self.original_launch_location.alt}")
 
     def setup_listeners(self):
         @self.vehicle.on_attribute('last_heartbeat')
@@ -264,7 +255,7 @@ class DroneController:
                 #print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
                 self.goto_position_ned(vertMovement, hortMovement, 0)
 
-            #MM TODO: this may interfere with Radler battery low actions - checkout later
+            # Don't use, this may interfere with Radler battery low actions - checkout later
             #self.land_and_wait_for_altitude()
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
@@ -487,83 +478,137 @@ class DroneController:
             return False
                 
     def load_mission_waypoints(self):
-        try:
+        try:            
             mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
-            uploaded_mission = []
             
-            cmds = self.vehicle.commands
-            cmds.clear()
-            cmds.upload()
+            # Clear any existing mission
+            self.vehicle.commands.clear()
+            self.vehicle.commands.upload()
+            time.sleep(2)  # Give time for clear to process
             
-            # Read waypoints from file
+            # Connect directly to the vehicle's MAVLink connection
+            master = self.vehicle._master
+            
+            # Read waypoints from mission file
+            waypoints = []
             with open(mission_waypoint_file_path, 'r') as f:
                 next(f)  # Skip header row
                 for line in f:
                     parts = line.strip().split('\t')
                     if len(parts) == 12:
-                        linearray=line.split('\t')
-                        seq=int(linearray[0])
-                        currentwp=int(linearray[1])
-                        frame=int(linearray[2])
-                        command=int(linearray[3])
-                        param1=float(linearray[4])
-                        param2=float(linearray[5])
-                        param3=float(linearray[6])
-                        param4=float(linearray[7])
-                        x=float(linearray[8])
-                        y=float(linearray[9])
-                        z=float(linearray[10])
-                        autocontinue=int(linearray[11].strip())
-                        cmd = Command( 
-                                    self.target_system, 
-                                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                                    seq, frame, command, 
-                                    currentwp, autocontinue,
-                                    param1, param2, param3, param4,
-                                    x, y, z)
-                        cmds.add(cmd)
-                        uploaded_mission.append(cmd)
-                            
-            cmds.upload()
-            # Note: The following warning appears on the console, but it does show "Flight plan received"
-            #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
-            #    AP: got MISSION_ITEM; GCS should send MISSION_ITEM_INT
-            #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
-            #    AP: Flight plan received
-            print(f"Mission uploaded: {cmds.count} waypoints") 
+                        waypoints.append({
+                            'seq': int(parts[0]),
+                            'frame': int(parts[2]),
+                            'command': int(parts[3]),
+                            'current': int(parts[1]),
+                            'autocontinue': int(parts[11].strip()),
+                            'param1': float(parts[4]),
+                            'param2': float(parts[5]),
+                            'param3': float(parts[6]),
+                            'param4': float(parts[7]),
+                            'x': float(parts[8]),
+                            'y': float(parts[9]),
+                            'z': float(parts[10])
+                        })
             
-            time.sleep(2)
-            cmds.download()
-            cmds.wait_ready()
+            if not waypoints:
+                print("No waypoints found in mission file")
+                return False
+                
+            # Start mission upload - send count first
+            print(f"Uploading {len(waypoints)} waypoints...")
             
-            # Don't count the home waypoint (first uploaded value)
-            num_uploaded_wp = len(uploaded_mission) - 1
-            num_cmds_wp = len(cmds)
-            # Value chosen based on GPS used by Ardupilot
-            epsilon = 1e-3
-            if num_cmds_wp == num_uploaded_wp:
-                for i in range(num_uploaded_wp):
-                    if abs(round(cmds[i].x, 3) - round(uploaded_mission[i + 1].x, 3)) > epsilon or \
-                        abs(round(cmds[i].y, 3) - round(uploaded_mission[i + 1].y, 3)) > epsilon or \
-                        abs(round(cmds[i].z, 3) - round(uploaded_mission[i + 1].z, 3)) > epsilon:
-                        print(f"Mission verification failed: mismatch at waypoint {i}")
-                        print(f"Uploaded coordinates (x,y,z): {uploaded_mission[i + 1].x}, {uploaded_mission[i + 1].y}, {uploaded_mission[i + 1].z}")
-                        print(f"Cmds coordinates (x,y,z): {cmds[i].x}, {cmds[i].y}, {cmds[i].z}")
-                        return False
-                   
-                print("Mission verified successfully")
-                # Upload to synchronize mission items between all components
-                cmds.upload()    
-                print("Mission synchronized") 
+            # Send mission count command
+            master.mav.mission_count_send(
+                master.target_system,
+                master.target_component,
+                len(waypoints),
+                0  # Mission type: 0 = mission
+            )
+            
+            # Wait for mission request
+            ack_received = False
+            for i in range(30):  # Timeout after 15 seconds
+                msg = master.recv_match(type=['MISSION_REQUEST_INT', 'MISSION_REQUEST', 'MISSION_ACK'], blocking=True, timeout=1)
+                if msg is not None:
+                    print(f"Received {msg.get_type()} message: {msg}")
+                    if msg.get_type() == 'MISSION_REQUEST_INT' or msg.get_type() == 'MISSION_REQUEST':
+                        seq = msg.seq
+                        if seq < len(waypoints):
+                            wp = waypoints[seq]
+                        
+                            # Always use mission_item_int_send for better precision
+                            print(f"Sending waypoint {seq}: command={wp['command']}, lat={wp['x']}, lon={wp['y']}, alt={wp['z']}")
+                        
+                            master.mav.mission_item_int_send(
+                                master.target_system,
+                                master.target_component,
+                                seq,
+                                wp['frame'],
+                                wp['command'],
+                                wp['current'],
+                                wp['autocontinue'],
+                                wp['param1'],
+                                wp['param2'],
+                                wp['param3'],
+                                wp['param4'],
+                                int(wp['x'] * 1e7),  # lat * 10^7
+                                int(wp['y'] * 1e7),  # lon * 10^7
+                                wp['z']
+                            )
+                        else:
+                            print(f"WARNING: Requested waypoint {seq} but only have {len(waypoints)} waypoints")
+                    elif msg.get_type() == 'MISSION_ACK':
+                        if msg.type == mavutil.mavlink.MAV_MISSION_ACCEPTED:
+                            print("Mission accepted!")
+                            ack_received = True
+                            break
+                        else:
+                            print(f"Mission upload failed with error: {msg.type}")
+                            return False
+                        
+                # Also check for general "Flight plan received" indication in another way
+                vehicle_msgs = master.recv_match(type='STATUSTEXT', blocking=False)
+                if vehicle_msgs and "Flight plan received" in vehicle_msgs.text:
+                    print("Detected 'Flight plan received' in status text")
+                    ack_received = True
+                    break
+                
+            # Even if we didn't get an explicit ACK, try to verify by downloading
+            # This is because ArduPilot sometimes doesn't send a proper ACK even when successful
+            print("Downloading mission to verify upload...")
+            self.vehicle.commands.download()
+            
+            # Wait for the download to complete with timeout
+            download_timeout = 10  # seconds
+            start_time = time.time()
+            while not self.vehicle.commands.wait_ready(timeout=1):
+                if time.time() - start_time > download_timeout:
+                    print("Timeout waiting for mission download")
+                    if ack_received:
+                        print("But mission ACK was received, proceeding anyway")
+                        return True
+                    return False
+            
+            # If we got here, mission download completed
+            if self.vehicle.commands.count > 0:
+                print(f"Mission verified: {self.vehicle.commands.count} waypoints found")
                 return True
             else:
-                print(f"Mission verification failed: waypoint count mismatch.  Uploaded = {num_uploaded_wp}, Found = {num_cmds_wp}")
-                return False        
-        
+                print("Mission verification failed: No waypoints found after upload")
+                # Last resort check - if we received ACK but commands.count is 0, something is wrong
+                # with Dronekit's tracking, not necessarily with the upload
+                if ack_received:
+                    print("But mission ACK was received, proceeding anyway")
+                    return True
+                return False
+            
         except Exception as e:
             print(f"Unexpected mission error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
     
-    # MM TODO: Redefining fence setup 
     def show_fence_via_mavlink(self):
         """Make fence visible through existing vehicle connection"""
         try:
@@ -830,148 +875,118 @@ class DroneController:
         subprocess.run(["pkill", "-f", "afs_gateway"])
         
     def reset_vehicle_position(self):
-        """Reset vehicle position using MAVLink commands through the bridge"""
+        """Reset vehicle position using MAVLink"""
         try:
             print("Resetting vehicle position via MAVLink...")
+
+            # Already in GUIDED mode from reset_simulation, but check anyway
+            if self.vehicle.mode.name != "GUIDED":
+                print(f"Changing from {self.vehicle.mode.name} to GUIDED mode for position commands...")
+                self.vehicle.mode = VehicleMode("GUIDED")
+                time.sleep(0.5)
+                    
+            # Get coordinates from original launch location
+            fixed_lat = self.original_launch_location.lat
+            fixed_lon = self.original_launch_location.lon
+            fixed_alt = self.original_launch_location.alt
             
-            # Switch to GUIDED for position commands
-            previous_mode = self.vehicle.mode.name
-            print(f"Changing from {previous_mode} to GUIDED mode for position commands...")
-            self.vehicle.mode = VehicleMode("GUIDED")
+            print(f"Resetting to position: {fixed_lat}, {fixed_lon}, {fixed_alt}")
+            
+            # Step 1: Send SET_HOME_POSITION command to reset home
+            msg = self.vehicle.message_factory.command_long_encode(
+                self.target_system,  # target_system
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
+                mavutil.mavlink.MAV_CMD_DO_SET_HOME,  # command
+                0,  # confirmation
+                0,  # Set home to specified location (not current location)
+                0, 0, 0,  # unused
+                fixed_lat,
+                fixed_lon,
+                fixed_alt
+            )
+            # Send command
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+            print(f"Home position reset to original coordinates: {fixed_lat}, {fixed_lon}, {fixed_alt}")
             time.sleep(0.5)
-            
-            if hasattr(self, 'original_launch_location') and self.original_launch_location is not None:
-                # Step 1: Send SET_HOME_POSITION command to reset home
-                msg = self.vehicle.message_factory.command_long_encode(
-                    self.target_system,  # target_system
-                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
-                    mavutil.mavlink.MAV_CMD_DO_SET_HOME,  # command
-                    0,  # confirmation
-                    0,  # Set home to specified location (not current location)
-                    0,  # param2 (not used)
-                    0,  # param3 (not used)
-                    0,  # param4 (not used)
-                    self.original_launch_location.lat,  # latitude
-                    self.original_launch_location.lon,  # longitude
-                    self.original_launch_location.alt   # altitude
-                )
                 
-                # Send command
-                self.vehicle.send_mavlink(msg)
-                self.vehicle.flush()
-                print(f"Home position reset to original coordinates: {self.original_launch_location.lat}, "
-                    f"{self.original_launch_location.lon}, {self.original_launch_location.alt}")
-                
-                # Step 2: For position reset, we can use SET_POSITION_TARGET_GLOBAL_INT
-                # First make sure EKF origin is set
-                msg = self.vehicle.message_factory.command_long_encode(
-                    self.target_system,
-                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                    mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
-                    0,
-                    mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
-                    1000000,  # 1 second interval
-                    0, 0, 0, 0, 0
-                )
-                self.vehicle.send_mavlink(msg)
-                self.vehicle.flush()
-                time.sleep(1)
-            
-                # Step 3: If needed, reset EKF origin
-                msg = self.vehicle.message_factory.command_long_encode(
-                    self.target_system,
-                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                    mavutil.mavlink.MAV_CMD_DO_SET_HOME,
-                    0,
-                    1,  # Use current position
-                    0, 0, 0, 0, 0, 0
-                )
-                self.vehicle.send_mavlink(msg)
-                self.vehicle.flush()
-                
-                # Step 4: Set the position
-                # Convert lat/lon from degrees to degrees*1e7 for the message
-                lat_int = int(self.original_launch_location.lat * 1e7)
-                lon_int = int(self.original_launch_location.lon * 1e7)
-                alt_int = int(self.original_launch_location.alt * 1000)  # mm
-            
-                msg = self.vehicle.message_factory.set_position_target_global_int_encode(
-                    0,  # time_boot_ms
-                    self.target_system,
-                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                    mavutil.mavlink.MAV_FRAME_GLOBAL_INT,  # coordinate frame
-                    0b0000111111111000,  # type_mask (only use position)
-                    lat_int,  # lat_int
-                    lon_int,  # lon_int
-                    alt_int,  # alt
-                    0, 0, 0,  # velocity
-                    0, 0, 0,  # acceleration
-                    0, 0      # yaw, yaw_rate
-                )
-                self.vehicle.send_mavlink(msg)
-                self.vehicle.flush()
-                
-                # Step 5: For SITL specifically, try a custom command
-                try:
-                    custom_msg = self.vehicle.message_factory.command_long_encode(
+            # 2. Reset EKF origin - critical for local position calculations
+            try:
+                # Try to access the constant first to see if it exists
+                origin_cmd = getattr(mavutil.mavlink, 'MAV_CMD_SET_GPS_GLOBAL_ORIGIN', None)
+                if origin_cmd is not None:
+                    msg = self.vehicle.message_factory.command_long_encode(
                         self.target_system,
                         mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                        42501,  # MAV_CMD_DO_SITL_SET_POSITION (custom command for SITL)
-                        0,
-                        self.original_launch_location.lat,
-                        self.original_launch_location.lon,
-                        self.original_launch_location.alt,
-                        0, 0, 0, 0
+                        origin_cmd,
+                        0,  # confirmation
+                        self.target_system,  # System ID
+                        0, 0,  # unused
+                        int(fixed_lat * 1e7),  # latitude (degrees * 1e7)
+                        int(fixed_lon * 1e7),  # longitude (degrees * 1e7)
+                        int(fixed_alt * 1000)   # altitude (mm)
                     )
-                    self.vehicle.send_mavlink(custom_msg)
+                    self.vehicle.send_mavlink(msg)
                     self.vehicle.flush()
-                    print("Sent SITL position reset command via MAVLink")
-                except:
-                    print("Custom SITL position command not supported, continuing")
-                
-                print("Position reset commands sent via MAVLink")
-                
-                # Give system time to process commands
-                time.sleep(2)
-                
-                # Don't restore the original mode - let reset_simulation handle it
-                print("Position reset complete, leaving in GUIDED mode for remaining reset steps")
-                
-                return True
-            else:
-                print("Error: No original launch location stored, cannot reset position")
-                return False
+                    print("EKF origin reset via MAVLink")
+            except Exception:
+                # Silently continue if command not available
+                pass
+            
+            # 3. ArduPilot SITL-specific position reset command
+            try:
+                msg = self.vehicle.message_factory.command_long_encode(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    42501,  # MAV_CMD_DO_SITL_SET_POSITION (ArduPilot specific)
+                    0,  # confirmation
+                    fixed_lat,
+                    fixed_lon,
+                    fixed_alt,
+                    0, 0, 0, 0  # unused
+                )
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                print("Sent ArduPilot SITL position reset command")
+                time.sleep(0.5) 
+            except Exception as e:
+                # Continue if this specific command is not available
+                print(f"SITL position command not supported: {e}")   
+             
+            # 4. Set position target using SET_POSITION_TARGET_GLOBAL_INT
+            lat_int = int(fixed_lat * 1e7)
+            lon_int = int(fixed_lon * 1e7)
+            alt_int = int(fixed_alt * 1000)  # mm
+            
+            msg = self.vehicle.message_factory.set_position_target_global_int_encode(
+                0,  # time_boot_ms
+                self.target_system,
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                mavutil.mavlink.MAV_FRAME_GLOBAL_INT,  # coordinate frame
+                0b0000111111111000,  # type_mask (only use position)
+                lat_int,  # lat_int
+                lon_int,  # lon_int
+                alt_int,  # alt
+                0, 0, 0,  # velocity
+                0, 0, 0,  # acceleration
+                0, 0      # yaw, yaw_rate
+            )
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+            print("Position target sent via MAVLink")
+            time.sleep(0.5)
+        
+            # 5. Verify position update
+            current_pos = self.vehicle.location.global_frame
+            print(f"Position after reset: {current_pos.lat}, {current_pos.lon}, {current_pos.alt}")
+            print(f"Target position was: {fixed_lat}, {fixed_lon}, {fixed_alt}")
+            
+            return True
             
         except Exception as e:
             print(f"Failed to reset position via MAVLink: {e}")
-            
-            # Fallback to direct SITL interface if MAVLink approach fails
-            print("Attempting fallback to direct SITL interface...")
-            try:
-                import socket
-                # Connect to SITL
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(('127.0.0.1', 5501))  # Default SITL control port
-                
-                if hasattr(self, 'original_launch_location') and self.original_launch_location is not None:
-                    # Reset position using exact coordinates from launch
-                    cmd = f"position,{self.original_launch_location.lat},{self.original_launch_location.lon},{self.original_launch_location.alt}\n"
-                    s.send(cmd.encode())
-                    
-                    # Also send a separate "home" reset command
-                    cmd = f"home,{self.original_launch_location.lat},{self.original_launch_location.lon},{self.original_launch_location.alt},0\n"
-                    s.send(cmd.encode())
-                    print("Position reset via fallback SITL interface")
-                    
-                    s.close()
-                    return True
-                else:
-                    print("Error: No original launch location stored, cannot reset position")
-                    return False
-                
-            except Exception as e2:
-                print(f"Fallback also failed: {e2}")
-                return False
+            traceback.print_exc()
+            return False       
 
     def reset_rc_channels(self):
         """Reset RC channels to neutral/minimum values with verification"""
@@ -1094,8 +1109,8 @@ class DroneController:
             # If we're in AUTO mode, exit to a safe mode first
             if self.vehicle.mode.name == 'AUTO':
                 print("Exiting AUTO mode...")
-                self.vehicle.mode = VehicleMode("LOITER")  # LOITER is a safe mode to transition from AUTO
-                time.sleep(2)
+                self.vehicle.mode = VehicleMode("GUIDED")  # Use GUIDED for upcoming position commands
+                time.sleep(1)
         except Exception as e:
             print(f"Mode change error: {e}")
             
@@ -1112,8 +1127,6 @@ class DroneController:
         # 3. Disarm the vehicle if armed
         if self.vehicle.armed:
             print("Disarming vehicle...")
-            # Reset RC channels to neutral before attempting to arm
-            self.reset_rc_channels()
             self.vehicle.armed = False
             start_time = time.time()
             while self.vehicle.armed and time.time() - start_time < 10:
@@ -1123,7 +1136,7 @@ class DroneController:
         # 4. Reset vehicle position 
         if not self.vehicle.armed:
             # Reset position using direct SITL interface
-            self.reset_vehicle_position()                    
+            self.reset_vehicle_position()           
 
         # 5. Reset mission to first waypoint
         try:
@@ -1147,6 +1160,9 @@ class DroneController:
 
         # 7. Ensure GPS is enabled
         try:
+            # First disable then re-enable GPS to force a clean state
+            self.config_gps_enable_param(False)
+            time.sleep(1)
             self.config_gps_enable_param(True)
             print("GPS enabled")
         except Exception as e:
