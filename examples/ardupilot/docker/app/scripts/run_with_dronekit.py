@@ -8,7 +8,6 @@ from pymavlink import mavutil
 import os
 import signal
 import sys
-import pexpect
 import subprocess
 import socket
 import traceback
@@ -16,36 +15,6 @@ import threading
 
 
 controller = None
-
-# Used to communicate with the Ardupilot SITL console/map directly (for geofence visibility)
-class MAVProxyConsole:
-    def __init__(self, host='127.0.0.1', port=14777):
-        self.host = host
-        self.port = port
-        
-    def send_command(self, command):
-        """Send a command directly to MAVProxy console"""
-        try:
-            print(f"Sending direct MAVProxy command: {command}")
-            # Create a socket connection
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)  # 5 second timeout
-            
-            # Connect to the MAVProxy console
-            sock.connect((self.host, self.port))
-            
-            # Send the command with newline
-            sock.sendall(f"{command}\n".encode())
-            
-            # Wait briefly for command to process
-            time.sleep(0.5)
-            
-            # Close the connection
-            sock.close()
-            return True
-        except Exception as e:
-            print(f"Failed to send MAVProxy command: {str(e)}")
-            return False
 
 class DroneController:
     def __init__(self, connection_str):
@@ -517,20 +486,6 @@ class DroneController:
             print(f"Error uploading mission: {str(e)}")
             return False
                 
-    def synchronize_mission(self):
-        """Force mission synchronization between all components"""
-        try:
-            print("Synchronizing mission...")
-            mission_items = self.vehicle.commands
-            mission_items.download()
-            mission_items.wait_ready()
-            mission_items.upload()
-            print("Mission synchronized")
-            return True
-        except Exception as e:
-            print(f"Error synchronizing mission: {e}")
-            return False
-    
     def load_mission_waypoints(self):
         try:
             mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
@@ -607,32 +562,6 @@ class DroneController:
         
         except Exception as e:
             print(f"Unexpected mission error: {str(e)}")
-                       
-    # MM TODO: Another thing to try if the above function does not work
-    def show_fence_with_mavproxy(self):
-        """Launch a separate MAVProxy instance to show the fence"""
-        try:
-            # Create a script to launch MAVProxy
-            script_path = "/tmp/show_fence.sh"
-            with open(script_path, "w") as f:
-                f.write("""#!/bin/bash
-    mavproxy.py --master=udp:127.0.0.1:14550 --load-module=map --cmd="fence reload; fence show; fence list" --daemon
-    """)
-            
-            # Make it executable
-            os.chmod(script_path, 0o755)
-            
-            # Run the script
-            subprocess.Popen([script_path], 
-                            stdout=subprocess.PIPE, 
-                            stderr=subprocess.PIPE, 
-                            shell=True)
-            
-            print("Launched separate MAVProxy instance to visualize fence")
-            return True
-        except Exception as e:
-            print(f"Error launching MAVProxy for fence visualization: {str(e)}")
-            return False
     
     # MM TODO: Redefining fence setup 
     def show_fence_via_mavlink(self):
@@ -875,241 +804,7 @@ class DroneController:
         except Exception as e:
             print(f"Error drawing fence on map: {str(e)}")
             traceback.print_exc()
-            return False
-
-    # MM TODO: Previous code for fence setup
-    def display_fence(self):
-        try:
-            # Now interact with MAVProxy using pexpect
-            child = pexpect.spawn('mavproxy.py --master=udp:127.0.0.1:14550', timeout=120)
-            print("Spawned mavproxy...")
-
-            # Expect MAVProxy to start and present its command prompt
-            child.expect('MAV>', timeout=60)
-            print("Ready to send mavproxy command...")
-
-            # Send the 'fence list' command to MAVProxy
-            child.sendline('fence list')
-            print("Sent mavproxy fence list command")
-  
-            # Wait for the response, which might include info about the fence loaded
-            child.expect('MAV>', timeout=60)
-            print(f"MAVProxy command completed.")
-
-            # Close the MAVProxy process
-            #time.sleep(1)
-            child.close()
-            print("Closed mavproxy communication link.")
-        except Exception as e:
-            print(f"Unexpected mavproxy communication error: {str(e)}")
-  
-    def make_fence_visible_mavlink(self):
-        """Make fence visible using direct MAVLink commands"""
-        try:
-            print("Making fence visible via MAVLink commands...")
-            
-            # 1. Ensure fence is enabled
-            self.vehicle.parameters['FENCE_ENABLE'] = 1
-            self.vehicle.flush()
-            time.sleep(0.5)
-        
-            # 2. Force fence visibility through parameter changes
-            # This approach works by toggling parameters to force a fence redraw
-            fence_params_to_toggle = ['FENCE_MARGIN', 'FENCE_RADIUS', 'FENCE_ALT_MAX']
-            
-            for param_name in fence_params_to_toggle:
-                if param_name in self.vehicle.parameters:
-                    try:
-                        # Store original value
-                        original_value = float(self.vehicle.parameters[param_name])
-                        
-                        # Change the parameter slightly to force a redraw
-                        new_value = original_value + (1.0 if original_value < 1000 else 5.0)
-                        self.vehicle.parameters[param_name] = new_value
-                        self.vehicle.flush()
-                        time.sleep(0.5)
-                        
-                        # Restore original value
-                        self.vehicle.parameters[param_name] = original_value
-                        self.vehicle.flush()
-                        time.sleep(0.5)
-                        
-                        print(f"Toggled {param_name} parameter to trigger fence redraw")
-                        break  # Only need to toggle one parameter successfully
-                        
-                    except Exception as e:
-                        print(f"Couldn't toggle {param_name}: {e}")
-            
-            # 3. Use DO_FENCE_ENABLE command to ensure fence is active and visible
-            self.vehicle._master.mav.command_long_send(
-                self.target_system,
-                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
-                0,  # confirmation
-                1,  # param1: enable fence
-                0,  # param2: unused
-                0, 0, 0, 0, 0  # unused
-            )
-            self.vehicle.flush()
-                                  
-            print("Fence visibility commands sent via MAVLink")
-            return True
-        
-        except Exception as e:
-            print(f"Error making fence visible: {str(e)}")
-            return False
-        
-    def ensure_fence_visible(self):
-        """Force the fence to be visible on the map"""
-        print("Requesting fence visibility...")
-        
-        # 1. Request fence point download to trigger visualization
-        msg = self.vehicle.message_factory.fence_fetch_point_encode(
-            self.target_system,
-            mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-            0  # Request first point
-        )
-        self.vehicle.send_mavlink(msg)
-        self.vehicle.flush()
-        
-        # 2. Toggle a parameter to trigger updates
-        try:
-            orig_type = int(self.vehicle.parameters['FENCE_TYPE'])
-            # Toggle between current type and current type + 8 (add/remove inclusion circle)
-            self.vehicle.parameters['FENCE_TYPE'] = orig_type ^ 8
-            self.vehicle.flush()
-            time.sleep(0.5)
-            self.vehicle.parameters['FENCE_TYPE'] = orig_type
-            self.vehicle.flush()
-        except:
-            pass
-
-        # 3. Send fence breach message to make GCS notice the fence
-        msg = self.vehicle.message_factory.statustext_encode(
-            mavutil.mavlink.MAV_SEVERITY_NOTICE,
-            b"FENCE: Configuration updated, fence ready"
-        )
-        self.vehicle.send_mavlink(msg)
-        self.vehicle.flush()
-    
-    def keep_load_geofence(self):
-        try:            
-            # First check if fence is already loaded with correct point count
-            fence_total = int(self.vehicle.parameters['FENCE_TOTAL'])
-            fence_enabled = int(self.vehicle.parameters['FENCE_ENABLE'])
-            fence_action = int(self.vehicle.parameters['FENCE_ACTION'])
-            
-            print(f"Current fence status: TOTAL={fence_total}, ENABLE={fence_enabled}, ACTION={fence_action}")
-
-            # If fence is already properly set up (correct points and parameters)
-            if (fence_total > 0 and fence_enabled == 1 and fence_action == 2 and 
-                hasattr(self, 'fence_uploaded') and self.fence_uploaded):
-                print("Geofence is already properly set up and enabled.")
-                return True
-
-            # Load fence.txt file
-            fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
-            with open(fence_file_path, 'r') as f:
-                points = [line.strip().split('\t') for line in f if line.strip()]
-
-            # Calculate total number of points (excluding any closing point)
-            fence_points_total = len(points) - 1  # Don't count the last point if it's a duplicate
-
-            # First setup the desired parameters
-            # Note: FENCE_ACTION=2 is report only, set to 1 for Guided mode, 0 is None (disabled fenced mode)
-            # Include fail safe settings that could effect the fence actions
-            #   Failsafe options: Bit 4 (16): Continue if in auto mission on GCS failsafe
-            #                     Bit 1 (2): Continue if in auto mode on RC failsafe
-            #                     Bit 0 (1): Clear flight mode actions from fence breach
-            fence_params = {
-                'FENCE_ACTION': 0,
-                'FENCE_ALT_MAX': 150.0,
-                'FENCE_RADIUS': 500.0,
-                'FENCE_OPTIONS': 1,
-                'FENCE_TOTAL': fence_points_total,
-                'FENCE_TYPE': 7,
-                #'FS_EKF_ACTION': 2, # Action when EKF variance exceeds threshold: AltHold (altitude hold mode)
-                #'FS_EKF_THRESH': 0.600000,
-                #'FS_OPTIONS': 16
-            }
-                
-            # Need to upload points if count doesn't match
-            upload_points_needed = (fence_total != fence_points_total or fence_total == 0)
-            
-            # Disable fence before making any changes
-            if fence_enabled:
-                print("Temporarily disabling fence for upload...")
-                self.vehicle.parameters['FENCE_ENABLE'] = 0
-                self.vehicle.flush()
-                time.sleep(1)
-            
-            # Set all required parameters
-            print("Setting fence parameters...")
-            for param, value in fence_params.items():
-                print(f"Setting {param} = {value}")
-                self.vehicle.parameters[param] = value
-                time.sleep(0.2)  # Brief delay for parameter update
-            
-            self.vehicle.flush()
-            time.sleep(1)
-    
-            # Upload fence points if needed
-            if upload_points_needed:            
-                print(f"Loading {fence_points_total} fence points...")
-                
-                # Set FENCE_TOTAL parameter
-                self.vehicle.parameters['FENCE_TOTAL'] = fence_points_total
-                self.vehicle.flush()
-                time.sleep(1)
- 
-                for i, point in enumerate(points[:-1]):  # Skip the last point if it's a closing point
-                    lat, lon = map(float, point)
-                    print(f"Uploading point {i+1}/{fence_points_total}: {lat}, {lon}")
-                    
-                    msg = self.vehicle.message_factory.fence_point_encode(
-                        self.target_system,
-                        mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                        i,  # point index
-                        fence_points_total,  # total fence points
-                        lat,
-                        lon
-                    )
-                    self.vehicle.send_mavlink(msg)
-                    self.vehicle.flush()
-                    time.sleep(0.2)  # Delay to ensure reliable delivery
-                                 
-                # Verify the fence was uploaded
-                actual_total = int(self.vehicle.parameters['FENCE_TOTAL'])
-                if actual_total != fence_points_total:
-                    print(f"Warning: Fence verification issue: Expected {fence_points_total} points but got {actual_total}")
-                else:
-                    print(f"Fence upload verified: {actual_total} points")
-            else:
-                print("Using existing fence points")
-                            
-            # Enable the fence
-            print("Enabling geofence...")
-            self.vehicle.parameters['FENCE_ENABLE'] = 1
-            self.vehicle.flush()
-                
-            self.ensure_fence_visible()
-            # Set a parameter to force redraw
-            # try:
-            #     orig_radius = self.vehicle.parameters['FENCE_RADIUS']
-            #     self.vehicle.parameters['FENCE_RADIUS'] = orig_radius + 1
-            #     self.vehicle.flush()
-            #     time.sleep(0.5)
-            #     self.vehicle.parameters['FENCE_RADIUS'] = orig_radius
-            #     self.vehicle.flush()
-            # except:
-            #     pass
-        
-            # Success
-            return True                
-                
-        except Exception as e:
-            print(f"Error loading geofence: {str(e)}")
-            return False                
+            return False         
                                 
     # Function to send custom MAVLink battery reset command
     def send_batreset(self):
@@ -1628,7 +1323,6 @@ def main():
             controller.reboot_autopilot()
         elif args.command == 'loadFence':
             controller.load_geofence()
-            #controller.make_fence_visible_mavlink()
         elif args.command == 'loadMission':
             controller.load_mission_waypoints()
         elif args.command == 'runSimulation':
@@ -1638,7 +1332,6 @@ def main():
                 waypoint_status = controller.load_mission_waypoints()
                 if waypoint_status:
                     controller.load_geofence()
-                    #controller.make_fence_visible_mavlink()
                     controller.run_sim(altitude=args.altitude, use_waypoints=True)
                 else:
                     print(f"ABORTED MISSION! ")
