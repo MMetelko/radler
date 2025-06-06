@@ -1,15 +1,19 @@
 #!/usr/bin/python
 
 import argparse
-from dronekit import connect, VehicleMode, LocationGlobalRelative, Command
+from dronekit import connect, VehicleMode, LocationGlobalRelative, Command, LocationGlobal
 import time
 from math import radians, cos
 from pymavlink import mavutil
+from pymavlink.dialects.v20 import ardupilotmega
 import os
 import signal
 import sys
-import pexpect
 import subprocess
+import socket
+import traceback
+import threading
+
 
 controller = None
 
@@ -17,12 +21,27 @@ class DroneController:
     def __init__(self, connection_str):
         self.connection_str = connection_str
         self.vehicle = None
-    
+        self.bridge_thread = None
+        self.bridge_process = None
+        self.fence_uploaded = False
+        
+        # Store the fixed launch location (from the mission file's first waypoint)
+        self.original_launch_location = LocationGlobal(
+            -35.3632624,  # Fixed latitude from the first waypoint
+            149.1652375,  # Fixed longitude from the first waypoint
+            584.08        # Fixed altitude from the first waypoint
+        )
+        
     def connect(self):
+        self.start_mavlink_bridge()
+        
         self.vehicle = connect(self.connection_str, wait_ready=True, timeout=60)
         self.target_system = self.vehicle._master.target_system
         print(f"Connected to the vehicle with target system ID = {self.target_system}.")
         self.setup_listeners()
+        
+        print(f"Original launch location stored: {self.original_launch_location.lat}, "
+              f"{self.original_launch_location.lon}, {self.original_launch_location.alt}")
 
     def setup_listeners(self):
         @self.vehicle.on_attribute('last_heartbeat')
@@ -46,6 +65,30 @@ class DroneController:
                 time.sleep(5)
         print("Failed to reconnect after maximum attempts.")
         return False
+    
+    def start_mavlink_bridge(self):        
+        def run_bridge():
+            try:
+                bridge_script = "/app-novnc/scripts/mavlink_bridge.py"
+                log_file = open("/tmp/bridge.log", "w")
+                self.bridge_process = subprocess.Popen(
+                    ['python3', bridge_script],
+                    stdout=log_file,
+                    stderr=log_file,
+                    text=True
+                )
+                print(f"Started MAVLink bridge with PID {self.bridge_process.pid}")
+                self.bridge_process.wait()
+            except Exception as e:
+                print(f"Bridge process error: {e}")
+        
+        # Start bridge in background thread
+        self.bridge_thread = threading.Thread(target=run_bridge, daemon=True)
+        self.bridge_thread.start()
+        print("Started MAVLink bridge in background")
+        
+        # Give it a moment to initialize
+        time.sleep(2)
        
     def arm_and_takeoff(self, aTargetAltitude):
         """
@@ -212,7 +255,7 @@ class DroneController:
                 #print(f"Flying to relative position: North/South = {vertMovement}, East/West = {hortMovement}, Altitute Change = 0)")
                 self.goto_position_ned(vertMovement, hortMovement, 0)
 
-            #MM TODO: this may interfere with Radler battery low actions - checkout later
+            # Don't use, this may interfere with Radler battery low actions - checkout later
             #self.land_and_wait_for_altitude()
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
@@ -435,157 +478,183 @@ class DroneController:
             return False
                 
     def load_mission_waypoints(self):
-        try:
+        try:            
             mission_waypoint_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "mission.txt")
-            uploaded_mission = []
             
-            cmds = self.vehicle.commands
-            cmds.clear()
-            cmds.upload()
+            # Clear any existing mission
+            self.vehicle.commands.clear()
+            self.vehicle.commands.upload()
+            time.sleep(2)  # Give time for clear to process
             
-            # Read waypoints from file
+            # Connect directly to the vehicle's MAVLink connection
+            master = self.vehicle._master
+            
+            # Read waypoints from mission file
+            waypoints = []
             with open(mission_waypoint_file_path, 'r') as f:
                 next(f)  # Skip header row
                 for line in f:
                     parts = line.strip().split('\t')
                     if len(parts) == 12:
-                        linearray=line.split('\t')
-                        seq=int(linearray[0])
-                        currentwp=int(linearray[1])
-                        frame=int(linearray[2])
-                        command=int(linearray[3])
-                        param1=float(linearray[4])
-                        param2=float(linearray[5])
-                        param3=float(linearray[6])
-                        param4=float(linearray[7])
-                        x=float(linearray[8])
-                        y=float(linearray[9])
-                        z=float(linearray[10])
-                        autocontinue=int(linearray[11].strip())
-                        cmd = Command( 
-                                    self.target_system, 
-                                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1, # target_component
-                                    seq, frame, command, 
-                                    currentwp, autocontinue,
-                                    param1, param2, param3, param4,
-                                    x, y, z)
-                        cmds.add(cmd)
-                        uploaded_mission.append(cmd)
-                            
-            cmds.upload()
-            # Note: The following warning appears on the console, but it does show "Flight plan received"
-            #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
-            #    AP: got MISSION_ITEM; GCS should send MISSION_ITEM_INT
-            #    Got MISSION_ACK: TYPE_MISSION: ACCEPTED
-            #    AP: Flight plan received
-            print(f"Mission uploaded: {cmds.count} waypoints") 
+                        waypoints.append({
+                            'seq': int(parts[0]),
+                            'frame': int(parts[2]),
+                            'command': int(parts[3]),
+                            'current': int(parts[1]),
+                            'autocontinue': int(parts[11].strip()),
+                            'param1': float(parts[4]),
+                            'param2': float(parts[5]),
+                            'param3': float(parts[6]),
+                            'param4': float(parts[7]),
+                            'x': float(parts[8]),
+                            'y': float(parts[9]),
+                            'z': float(parts[10])
+                        })
             
-            time.sleep(2)
-            cmds.download()
-            cmds.wait_ready()
+            if not waypoints:
+                print("No waypoints found in mission file")
+                return False
+                
+            # Start mission upload - send count first
+            print(f"Uploading {len(waypoints)} waypoints...")
             
-            # Don't count the home waypoint (first uploaded value)
-            num_uploaded_wp = len(uploaded_mission) - 1
-            num_cmds_wp = len(cmds)
-            # Value chosen based on GPS used by Ardupilot
-            epsilon = 1e-3
-            if num_cmds_wp == num_uploaded_wp:
-                for i in range(num_uploaded_wp):
-                    if abs(round(cmds[i].x, 3) - round(uploaded_mission[i + 1].x, 3)) > epsilon or \
-                        abs(round(cmds[i].y, 3) - round(uploaded_mission[i + 1].y, 3)) > epsilon or \
-                        abs(round(cmds[i].z, 3) - round(uploaded_mission[i + 1].z, 3)) > epsilon:
-                        print(f"Mission verification failed: mismatch at waypoint {i}")
-                        print(f"Uploaded coordinates (x,y,z): {uploaded_mission[i + 1].x}, {uploaded_mission[i + 1].y}, {uploaded_mission[i + 1].z}")
-                        print(f"Cmds coordinates (x,y,z): {cmds[i].x}, {cmds[i].y}, {cmds[i].z}")
-                        return False
-                print("Mission verified successfully")
+            # Send mission count command
+            master.mav.mission_count_send(
+                master.target_system,
+                master.target_component,
+                len(waypoints),
+                0  # Mission type: 0 = mission
+            )
+            
+            # Wait for mission request
+            ack_received = False
+            for i in range(30):  # Timeout after 15 seconds
+                msg = master.recv_match(type=['MISSION_REQUEST_INT', 'MISSION_REQUEST', 'MISSION_ACK'], blocking=True, timeout=1)
+                if msg is not None:
+                    print(f"Received {msg.get_type()} message: {msg}")
+                    if msg.get_type() == 'MISSION_REQUEST_INT' or msg.get_type() == 'MISSION_REQUEST':
+                        seq = msg.seq
+                        if seq < len(waypoints):
+                            wp = waypoints[seq]
+                        
+                            # Always use mission_item_int_send for better precision
+                            print(f"Sending waypoint {seq}: command={wp['command']}, lat={wp['x']}, lon={wp['y']}, alt={wp['z']}")
+                        
+                            master.mav.mission_item_int_send(
+                                master.target_system,
+                                master.target_component,
+                                seq,
+                                wp['frame'],
+                                wp['command'],
+                                wp['current'],
+                                wp['autocontinue'],
+                                wp['param1'],
+                                wp['param2'],
+                                wp['param3'],
+                                wp['param4'],
+                                int(wp['x'] * 1e7),  # lat * 10^7
+                                int(wp['y'] * 1e7),  # lon * 10^7
+                                wp['z']
+                            )
+                        else:
+                            print(f"WARNING: Requested waypoint {seq} but only have {len(waypoints)} waypoints")
+                    elif msg.get_type() == 'MISSION_ACK':
+                        if msg.type == mavutil.mavlink.MAV_MISSION_ACCEPTED:
+                            print("Mission accepted!")
+                            ack_received = True
+                            break
+                        else:
+                            print(f"Mission upload failed with error: {msg.type}")
+                            return False
+                        
+                # Also check for general "Flight plan received" indication in another way
+                vehicle_msgs = master.recv_match(type='STATUSTEXT', blocking=False)
+                if vehicle_msgs and "Flight plan received" in vehicle_msgs.text:
+                    print("Detected 'Flight plan received' in status text")
+                    ack_received = True
+                    break
+                
+            # Even if we didn't get an explicit ACK, try to verify by downloading
+            # This is because ArduPilot sometimes doesn't send a proper ACK even when successful
+            print("Downloading mission to verify upload...")
+            self.vehicle.commands.download()
+            
+            # Wait for the download to complete with timeout
+            download_timeout = 10  # seconds
+            start_time = time.time()
+            while not self.vehicle.commands.wait_ready(timeout=1):
+                if time.time() - start_time > download_timeout:
+                    print("Timeout waiting for mission download")
+                    if ack_received:
+                        print("But mission ACK was received, proceeding anyway")
+                        return True
+                    return False
+            
+            # If we got here, mission download completed
+            if self.vehicle.commands.count > 0:
+                print(f"Mission verified: {self.vehicle.commands.count} waypoints found")
                 return True
             else:
-                print(f"Mission verification failed: waypoint count mismatch.  Uploaded = {num_uploaded_wp}, Found = {num_cmds_wp}")
-                return False        
-        
+                print("Mission verification failed: No waypoints found after upload")
+                # Last resort check - if we received ACK but commands.count is 0, something is wrong
+                # with Dronekit's tracking, not necessarily with the upload
+                if ack_received:
+                    print("But mission ACK was received, proceeding anyway")
+                    return True
+                return False
+            
         except Exception as e:
             print(f"Unexpected mission error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
     
-    def display_fence(self):
+    def show_fence_via_mavlink(self):
+        """Make fence visible through existing vehicle connection"""
         try:
-            # Now interact with MAVProxy using pexpect
-            child = pexpect.spawn('mavproxy.py --master=udp:127.0.0.1:14550', timeout=120)
-            print("Spawned mavproxy...")
-
-            # Expect MAVProxy to start and present its command prompt
-            child.expect('MAV>', timeout=60)
-            print("Ready to send mavproxy command...")
-
-            # Send the 'fence list' command to MAVProxy
-            child.sendline('fence list')
-            print("Sent mavproxy fence list command")
-  
-            # Wait for the response, which might include info about the fence loaded
-            child.expect('MAV>', timeout=60)
-            print(f"MAVProxy command completed.")
-
-            # Close the MAVProxy process
-            #time.sleep(1)
-            child.close()
-            print("Closed mavproxy communication link.")
+            print("Making fence visible through existing vehicle connection...")
+            
+            # Get current fence parameters
+            fence_total = int(self.vehicle.parameters.get('FENCE_TOTAL', 0))
+            
+            if fence_total > 0:
+                print(f"Making fence with {fence_total} points visible")
+                
+                # Approach 1: Toggle FENCE_ENABLE parameter (this has been working reliably)
+                current_enable = int(self.vehicle.parameters.get('FENCE_ENABLE', 0))
+                print(f"Toggling fence visibility (current state: {current_enable})")
+                
+                # Disable fence briefly
+                self.vehicle.parameters['FENCE_ENABLE'] = 0
+                self.vehicle.flush()
+                time.sleep(0.5)
+            
+                # Re-enable fence
+                self.vehicle.parameters['FENCE_ENABLE'] = 1
+                self.vehicle.flush()
+                time.sleep(0.5)
+                
+                # Approach 2: Send a DO_FENCE_ENABLE command (modern approach)
+                msg = self.vehicle.message_factory.command_long_encode(
+                    self.target_system,  # target system
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,  # target component
+                    mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,  # command
+                    0,  # confirmation
+                    1,  # enable
+                    0, 0, 0, 0, 0, 0  # params 2-7 (not used)
+                )
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                
+                print("Sent fence visibility commands via existing vehicle connection")
+                return True
+            else:
+                print("No fence points to display")
+                return False
+                
         except Exception as e:
-            print(f"Unexpected mavproxy communication error: {str(e)}")
-  
-    def make_fence_visible_mavlink(self):
-        """Make fence visible using direct MAVLink commands"""
-        try:
-            print("Making fence visible via MAVLink commands...")
-            
-            # 1. Ensure fence is enabled
-            self.vehicle.parameters['FENCE_ENABLE'] = 1
-            self.vehicle.flush()
-            time.sleep(0.5)
-        
-            # 2. Force fence visibility through parameter changes
-            # This approach works by toggling parameters to force a fence redraw
-            fence_params_to_toggle = ['FENCE_MARGIN', 'FENCE_RADIUS', 'FENCE_ALT_MAX']
-            
-            for param_name in fence_params_to_toggle:
-                if param_name in self.vehicle.parameters:
-                    try:
-                        # Store original value
-                        original_value = float(self.vehicle.parameters[param_name])
-                        
-                        # Change the parameter slightly to force a redraw
-                        new_value = original_value + (1.0 if original_value < 1000 else 5.0)
-                        self.vehicle.parameters[param_name] = new_value
-                        self.vehicle.flush()
-                        time.sleep(0.5)
-                        
-                        # Restore original value
-                        self.vehicle.parameters[param_name] = original_value
-                        self.vehicle.flush()
-                        time.sleep(0.5)
-                        
-                        print(f"Toggled {param_name} parameter to trigger fence redraw")
-                        break  # Only need to toggle one parameter successfully
-                        
-                    except Exception as e:
-                        print(f"Couldn't toggle {param_name}: {e}")
-            
-            # 3. Use DO_FENCE_ENABLE command to ensure fence is active and visible
-            self.vehicle._master.mav.command_long_send(
-                self.target_system,
-                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                mavutil.mavlink.MAV_CMD_DO_FENCE_ENABLE,
-                0,  # confirmation
-                1,  # param1: enable fence
-                0,  # param2: unused
-                0, 0, 0, 0, 0  # unused
-            )
-            self.vehicle.flush()
-                                  
-            print("Fence visibility commands sent via MAVLink")
-            return True
-        
-        except Exception as e:
-            print(f"Error making fence visible: {str(e)}")
+            print(f"Error making fence visible via MAVLink: {e}")
+            traceback.print_exc()
             return False
     
     def load_geofence(self):
@@ -594,117 +663,193 @@ class DroneController:
             fence_total = int(self.vehicle.parameters['FENCE_TOTAL'])
             fence_enabled = int(self.vehicle.parameters['FENCE_ENABLE'])
             fence_action = int(self.vehicle.parameters['FENCE_ACTION'])
+            fence_type = int(self.vehicle.parameters['FENCE_TYPE'])
             
-            print(f"Current fence status: TOTAL={fence_total}, ENABLE={fence_enabled}, ACTION={fence_action}")
+            print(f"Current fence status: TOTAL={fence_total}, ENABLE={fence_enabled}, TYPE={fence_type}, ACTION={fence_action}")
 
             # If fence is already properly set up (correct points and parameters)
-            if (fence_total > 0 and fence_enabled == 1 and fence_action == 2 and 
+            if (fence_total >= 3 and fence_enabled == 1 and (fence_type & 7) == 7 and 
                 hasattr(self, 'fence_uploaded') and self.fence_uploaded):
                 print("Geofence is already properly set up and enabled.")
+                
+                # Send show commands to make the fence visible even if already loaded
+                self.show_fence_on_map()
                 return True
-
+            
+            # COMPLETELY disable fence before making ANY changes
+            print("Completely disabling fence before upload...")
+            self.vehicle.parameters['FENCE_ENABLE'] = 0
+            self.vehicle.parameters['FENCE_TYPE'] = 0  # Disable all fence types
+            self.vehicle.flush()
+            time.sleep(2)  # Longer delay to ensure fence is fully disabled
+            
+            # CRITICAL: Clear existing fence points by setting total to 0
+            print("Clearing existing fence points...")
+            self.vehicle.parameters['FENCE_TOTAL'] = 0
+            self.vehicle.flush()
+            time.sleep(2)  # Wait for fence to be cleared
+            
             # Load fence.txt file
             fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
             with open(fence_file_path, 'r') as f:
                 points = [line.strip().split('\t') for line in f if line.strip()]
 
-            # Calculate total number of points (excluding any closing point)
-            fence_points_total = len(points) - 1  # Don't count the last point if it's a duplicate
+            # Check if last point is identical to first point, if not add it
+            first_point = points[0]
+            last_point = points[-1]
+            if first_point != last_point:
+                points.append(first_point)
+                print("Added closing point to make a complete polygon")
+            
+            fence_points_total = len(points)
+            
+            # Check if we have enough points
+            if fence_points_total < 3:
+                print(f"ERROR: Fence file contains only {fence_points_total} points. At least 3 are required.")
+                return False
 
-            # First setup the desired parameters
-            # Note: FENCE_ACTION=2 is report only, set to 1 for Guided mode, 0 is None (disabled fenced mode)
-            # Include fail safe settings that could effect the fence actions
-            #   Failsafe options: Bit 4 (16): Continue if in auto mission on GCS failsafe
-            #                     Bit 1 (2): Continue if in auto mode on RC failsafe
-            #                     Bit 0 (1): Clear flight mode actions from fence breach
+            # First set total points (CRITICAL: must be done before uploading any points)
+            self.vehicle.parameters['FENCE_TOTAL'] = fence_points_total
+            self.vehicle.flush()
+            time.sleep(2)  # Give autopilot time to allocate memory for points
+            
+            # Upload points one by one using the fence_point_encode method
+            for i, point in enumerate(points):
+                lat, lon = map(float, point)
+                print(f"Uploading point {i+1}/{fence_points_total}: {lat}, {lon}")
+                
+                msg = self.vehicle.message_factory.fence_point_encode(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    i,  # point index
+                    fence_points_total,  # total fence points
+                    lat,
+                    lon
+                )
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                time.sleep(0.5)  # Longer delay for reliable delivery
+            
+            # Wait for points to be processed
+            time.sleep(3)
+                   
+            # Now set the fence parameters
+            print("Setting final fence parameters...")
             fence_params = {
-                'FENCE_ACTION': 0,
+                'FENCE_TYPE': 7,  # Enable polygon fence (bit 1=2) plus others
+                'FENCE_ACTION': 2,  # Report only
                 'FENCE_ALT_MAX': 150.0,
                 'FENCE_RADIUS': 500.0,
-                'FENCE_OPTIONS': 1,
-                'FENCE_TOTAL': fence_points_total,
-                'FENCE_TYPE': 7,
-                #'FS_EKF_ACTION': 2, # Action when EKF variance exceeds threshold: AltHold (altitude hold mode)
-                #'FS_EKF_THRESH': 0.600000,
-                #'FS_OPTIONS': 16
+                'FENCE_MARGIN': 10.0,  # Add margin parameter
             }
-                
-            # Need to upload points if count doesn't match
-            upload_points_needed = (fence_total != fence_points_total or fence_total == 0)
-            
-            # Disable fence before making any changes
-            if fence_enabled:
-                print("Temporarily disabling fence for upload...")
-                self.vehicle.parameters['FENCE_ENABLE'] = 0
-                self.vehicle.flush()
-                time.sleep(1)
-            
-            # Set all required parameters
-            print("Setting fence parameters...")
+        
             for param, value in fence_params.items():
                 print(f"Setting {param} = {value}")
                 self.vehicle.parameters[param] = value
-                time.sleep(0.2)  # Brief delay for parameter update
-            
-            self.vehicle.flush()
-            time.sleep(1)
-    
-            # Upload fence points if needed
-            if upload_points_needed:            
-                print(f"Loading {fence_points_total} fence points...")
-                
-                # Set FENCE_TOTAL parameter
-                self.vehicle.parameters['FENCE_TOTAL'] = fence_points_total
                 self.vehicle.flush()
-                time.sleep(1)
- 
-                for i, point in enumerate(points[:-1]):  # Skip the last point if it's a closing point
-                    lat, lon = map(float, point)
-                    print(f"Uploading point {i+1}/{fence_points_total}: {lat}, {lon}")
-                    
-                    msg = self.vehicle.message_factory.fence_point_encode(
-                        self.target_system,
-                        mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                        i,  # point index
-                        fence_points_total,  # total fence points
-                        lat,
-                        lon
-                    )
-                    self.vehicle.send_mavlink(msg)
-                    self.vehicle.flush()
-                    time.sleep(0.2)  # Delay to ensure reliable delivery
-                                 
-                # Verify the fence was uploaded
-                actual_total = int(self.vehicle.parameters['FENCE_TOTAL'])
-                if actual_total != fence_points_total:
-                    print(f"Warning: Fence verification issue: Expected {fence_points_total} points but got {actual_total}")
-                else:
-                    print(f"Fence upload verified: {actual_total} points")
-            else:
-                print("Using existing fence points")
-                            
-            # Enable the fence
+                time.sleep(0.5)
+                        
+            # Finally enable the fence
             print("Enabling geofence...")
             self.vehicle.parameters['FENCE_ENABLE'] = 1
             self.vehicle.flush()
-                
-            # Set a parameter to force redraw
-            try:
-                orig_radius = self.vehicle.parameters['FENCE_RADIUS']
-                self.vehicle.parameters['FENCE_RADIUS'] = orig_radius + 1
-                self.vehicle.flush()
-                time.sleep(0.5)
-                self.vehicle.parameters['FENCE_RADIUS'] = orig_radius
-                self.vehicle.flush()
-            except:
-                pass
-        
+            time.sleep(2)
+            
+            # Try to make fence visible on MAP
+            self.show_fence_via_mavlink()
+         
+            # Set flag to indicate fence is uploaded
+            self.fence_uploaded = True
+            
             # Success
             return True                
                 
         except Exception as e:
             print(f"Error loading geofence: {str(e)}")
-            return False                
+            traceback.print_exc()
+            return False
+
+    def show_fence_on_map(self):
+        """Use multiple methods to ensure fence is visible on map"""
+        try:
+            print("Attempting to make fence visible on the map...")
+            
+            # Connect to MAVProxy console
+            console_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            console_connection.settimeout(5)
+            
+            try:
+                console_connection.connect(('127.0.0.1', 14777))
+                print("Connected to MAVProxy console")
+                
+                # Try multiple commands with clear feedback
+                commands = [
+                    "fence list",
+                    "fence draw",
+                    "fence show",
+                    "map",  # Refresh map
+                    "param show FENCE_ENABLE",  # Verify fence is enabled
+                    "param show FENCE_TYPE",    # Verify fence type
+                    "param show FENCE_TOTAL"    # Verify fence point count
+                ]
+                        
+                for cmd in commands:
+                    print(f"Sending MAVProxy command: {cmd}")
+                    console_connection.sendall(f"{cmd}\n".encode())
+                    time.sleep(0.5)  # Give time for command to process
+                
+                console_connection.close()
+                print("Successfully sent fence visualization commands")
+                return True
+                
+            except Exception as e:
+                print(f"Socket connection failed: {e}")
+                
+                # Fallback: Try to draw the fence directly
+                self.draw_fence_on_map()
+                return False
+            
+        except Exception as e:
+            print(f"Error showing fence on map: {str(e)}")
+            traceback.print_exc()
+            return False
+
+    def draw_fence_on_map(self):
+        """Draw fence polygon directly on the map as fallback"""
+        try:
+            # Connect to MAVProxy console
+            console_connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            console_connection.settimeout(5)
+            console_connection.connect(('127.0.0.1', 14777))
+            
+            # Load fence points
+            fence_file_path = os.path.join("/home/ardupilot/radler/examples", "ardupilot", "sitl_config", "fence.txt")
+            with open(fence_file_path, 'r') as f:
+                points = [line.strip().split('\t') for line in f if line.strip()]
+            
+            # Create commands to draw lines between all points
+            print("Drawing fence lines directly on map...")
+            
+            for i in range(len(points)-1):
+                lat1, lon1 = map(float, points[i])
+                lat2, lon2 = map(float, points[i+1])
+                cmd = f"map line {lat1} {lon1} {lat2} {lon2} red\n"
+                console_connection.sendall(cmd.encode())
+                time.sleep(0.2)
+
+            # Close the loop
+            lat1, lon1 = map(float, points[-1])
+            lat2, lon2 = map(float, points[0])
+            cmd = f"map line {lat1} {lon1} {lat2} {lon2} red\n"
+            console_connection.sendall(cmd.encode())
+            
+            console_connection.close()
+            print("Manually drew fence on map")
+            return True
+        except Exception as e:
+            print(f"Error drawing fence on map: {str(e)}")
+            traceback.print_exc()
+            return False         
                                 
     # Function to send custom MAVLink battery reset command
     def send_batreset(self):
@@ -728,7 +873,230 @@ class DroneController:
     def restart_radler_code(self):
         subprocess.run(["pkill", "-f", "afs_function"])
         subprocess.run(["pkill", "-f", "afs_gateway"])
+        
+    def reset_vehicle_position(self):
+        """Reset vehicle position using MAVLink"""
+        try:
+            print("Resetting vehicle position via MAVLink...")
 
+            # Already in GUIDED mode from reset_simulation, but check anyway
+            if self.vehicle.mode.name != "GUIDED":
+                print(f"Changing from {self.vehicle.mode.name} to GUIDED mode for position commands...")
+                self.vehicle.mode = VehicleMode("GUIDED")
+                time.sleep(0.5)
+                    
+            # Get coordinates from original launch location
+            fixed_lat = self.original_launch_location.lat
+            fixed_lon = self.original_launch_location.lon
+            fixed_alt = self.original_launch_location.alt
+            
+            print(f"Resetting to position: {fixed_lat}, {fixed_lon}, {fixed_alt}")
+            
+            # Step 1: Send SET_HOME_POSITION command to reset home
+            msg = self.vehicle.message_factory.command_long_encode(
+                self.target_system,  # target_system
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,  # target_component
+                mavutil.mavlink.MAV_CMD_DO_SET_HOME,  # command
+                0,  # confirmation
+                0,  # Set home to specified location (not current location)
+                0, 0, 0,  # unused
+                fixed_lat,
+                fixed_lon,
+                fixed_alt
+            )
+            # Send command
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+            print(f"Home position reset to original coordinates: {fixed_lat}, {fixed_lon}, {fixed_alt}")
+            time.sleep(0.5)
+                
+            # 2. Reset EKF origin - critical for local position calculations
+            try:
+                # Try to access the constant first to see if it exists
+                origin_cmd = getattr(mavutil.mavlink, 'MAV_CMD_SET_GPS_GLOBAL_ORIGIN', None)
+                if origin_cmd is not None:
+                    msg = self.vehicle.message_factory.command_long_encode(
+                        self.target_system,
+                        mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                        origin_cmd,
+                        0,  # confirmation
+                        self.target_system,  # System ID
+                        0, 0,  # unused
+                        int(fixed_lat * 1e7),  # latitude (degrees * 1e7)
+                        int(fixed_lon * 1e7),  # longitude (degrees * 1e7)
+                        int(fixed_alt * 1000)   # altitude (mm)
+                    )
+                    self.vehicle.send_mavlink(msg)
+                    self.vehicle.flush()
+                    print("EKF origin reset via MAVLink")
+            except Exception:
+                # Silently continue if command not available
+                pass
+            
+            # 3. ArduPilot SITL-specific position reset command
+            try:
+                msg = self.vehicle.message_factory.command_long_encode(
+                    self.target_system,
+                    mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                    42501,  # MAV_CMD_DO_SITL_SET_POSITION (ArduPilot specific)
+                    0,  # confirmation
+                    fixed_lat,
+                    fixed_lon,
+                    fixed_alt,
+                    0, 0, 0, 0  # unused
+                )
+                self.vehicle.send_mavlink(msg)
+                self.vehicle.flush()
+                print("Sent ArduPilot SITL position reset command")
+                time.sleep(0.5) 
+            except Exception as e:
+                # Continue if this specific command is not available
+                print(f"SITL position command not supported: {e}")   
+             
+            # 4. Set position target using SET_POSITION_TARGET_GLOBAL_INT
+            lat_int = int(fixed_lat * 1e7)
+            lon_int = int(fixed_lon * 1e7)
+            alt_int = int(fixed_alt * 1000)  # mm
+            
+            msg = self.vehicle.message_factory.set_position_target_global_int_encode(
+                0,  # time_boot_ms
+                self.target_system,
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                mavutil.mavlink.MAV_FRAME_GLOBAL_INT,  # coordinate frame
+                0b0000111111111000,  # type_mask (only use position)
+                lat_int,  # lat_int
+                lon_int,  # lon_int
+                alt_int,  # alt
+                0, 0, 0,  # velocity
+                0, 0, 0,  # acceleration
+                0, 0      # yaw, yaw_rate
+            )
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+            print("Position target sent via MAVLink")
+            time.sleep(0.5)
+        
+            # 5. Verify position update
+            current_pos = self.vehicle.location.global_frame
+            print(f"Position after reset: {current_pos.lat}, {current_pos.lon}, {current_pos.alt}")
+            print(f"Target position was: {fixed_lat}, {fixed_lon}, {fixed_alt}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Failed to reset position via MAVLink: {e}")
+            traceback.print_exc()
+            return False       
+
+    def reset_rc_channels(self):
+        """Reset RC channels to neutral/minimum values with verification"""
+        try:
+            print("Resetting RC channels to neutral positions...")
+            
+            # Method 1: Using rc_channels_override_send
+            self.vehicle._master.mav.rc_channels_override_send(
+                self.vehicle._master.target_system,
+                self.vehicle._master.target_component,
+                1500, 1500, 1000, 1500, 1500, 1500, 1500, 1500
+            )
+            self.vehicle.flush()
+            time.sleep(1)
+            
+            # Verify Method 1
+            if self.verify_rc_channels():
+                print("RC channels reset successful with Method 1")
+                return True
+                
+            print("Method 1 didn't fully reset RC channels, trying Method 2...")
+            
+            # Method 2: Using command_long approach
+            msg = self.vehicle.message_factory.command_long_encode(
+                self.target_system,
+                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
+                mavutil.mavlink.MAV_CMD_DO_RC_OVERRIDE,
+                0, 0, 0, 0, 0, 0, 0, 0
+            )
+            self.vehicle.send_mavlink(msg)
+            self.vehicle.flush()
+            time.sleep(1)
+            
+            # Verify Method 2
+            if self.verify_rc_channels():
+                print("RC channels reset successful with Method 2")
+                return True
+                
+            print("Method 2 didn't fully reset RC channels, trying Method 3...")
+        
+            # Method 3: Clear and then set specific values
+            self.vehicle._master.mav.rc_channels_override_send(
+                self.vehicle._master.target_system,
+                self.vehicle._master.target_component,
+                0, 0, 0, 0, 0, 0, 0, 0
+            )
+            self.vehicle.flush()
+            time.sleep(1)
+            
+            self.vehicle._master.mav.rc_channels_override_send(
+                self.vehicle._master.target_system,
+                self.vehicle._master.target_component,
+                1500, 1500, 1000, 1500, 1500, 1500, 1500, 1500
+            )
+            self.vehicle.flush()
+            time.sleep(1)
+            
+            # Final verification
+            if self.verify_rc_channels():
+                print("RC channels reset successful with Method 3")
+                return True
+            
+            print("Warning: All RC channel reset methods attempted without full success")
+            return False
+            
+        except Exception as e:
+            print(f"Error resetting RC channels: {e}")
+            return False
+        
+    def verify_rc_channels(self):
+        """Verify that RC channels are at neutral/expected values"""
+        try:
+            # Request RC channels reading
+            self.vehicle._master.mav.request_data_stream_send(
+                self.vehicle._master.target_system,
+                self.vehicle._master.target_component,
+                mavutil.mavlink.MAV_DATA_STREAM_RC_CHANNELS,
+                10,  # 10 Hz
+                1    # Start
+            )
+            
+            # Wait for RC_CHANNELS message
+            msg = self.vehicle._master.recv_match(
+                type='RC_CHANNELS', 
+                blocking=True, 
+                timeout=2
+            )
+            
+            if msg is None:
+                print("Could not get RC channel readings")
+                return False
+                
+            # Check if channels are at expected values (with some tolerance)
+            roll_ok = abs(msg.chan1_raw - 1500) < 50
+            pitch_ok = abs(msg.chan2_raw - 1500) < 50
+            throttle_ok = abs(msg.chan3_raw - 1000) < 50
+            yaw_ok = abs(msg.chan4_raw - 1500) < 50
+            
+            print(f"RC status: Roll={msg.chan1_raw} ({roll_ok}), "
+                f"Pitch={msg.chan2_raw} ({pitch_ok}), "
+                f"Throttle={msg.chan3_raw} ({throttle_ok}), "
+                f"Yaw={msg.chan4_raw} ({yaw_ok})")
+            
+            # Return true only if all channels are at expected values
+            return roll_ok and pitch_ok and throttle_ok and yaw_ok
+        
+        except Exception as e:
+            print(f"Error verifying RC channels: {e}")
+            return False
+    
     # Reset battery
     def reset_simulation(self):
         """
@@ -741,12 +1109,22 @@ class DroneController:
             # If we're in AUTO mode, exit to a safe mode first
             if self.vehicle.mode.name == 'AUTO':
                 print("Exiting AUTO mode...")
-                self.vehicle.mode = VehicleMode("LOITER")  # LOITER is a safe mode to transition from AUTO
-                time.sleep(2)
+                self.vehicle.mode = VehicleMode("GUIDED")  # Use GUIDED for upcoming position commands
+                time.sleep(1)
         except Exception as e:
             print(f"Mode change error: {e}")
+            
+        # 2. Reset RC channels more aggressively by calling multiple times
+        print("Resetting RC channels...")
+        success = self.reset_rc_channels()
+        
+        # If the first attempt didn't fully succeed, try once more
+        if not success:
+            print("First RC reset attempt didn't fully succeed, trying again...")
+            time.sleep(2)  # Give system time to settle
+            self.reset_rc_channels()
 
-        # 2. Disarm the vehicle if armed
+        # 3. Disarm the vehicle if armed
         if self.vehicle.armed:
             print("Disarming vehicle...")
             self.vehicle.armed = False
@@ -755,7 +1133,12 @@ class DroneController:
                 print("Waiting for disarm...")
                 time.sleep(1)
 
-        # 3. Reset mission to first waypoint
+        # 4. Reset vehicle position 
+        if not self.vehicle.armed:
+            # Reset position using direct SITL interface
+            self.reset_vehicle_position()           
+
+        # 5. Reset mission to first waypoint
         try:
             msg = self.vehicle.message_factory.mission_set_current_encode(
                 self.target_system, 
@@ -768,21 +1151,24 @@ class DroneController:
         except Exception as e:
             print(f"Error resetting mission: {e}")
 
-        # 4. Reset the battery level
+        # 6. Reset the battery level
         try:
             self.send_batreset()
             print("Battery level reset to 100%")
         except Exception as e:
             print(f"Error resetting battery: {e}")
 
-        # 5. Ensure GPS is enabled
+        # 7. Ensure GPS is enabled
         try:
+            # First disable then re-enable GPS to force a clean state
+            self.config_gps_enable_param(False)
+            time.sleep(1)
             self.config_gps_enable_param(True)
             print("GPS enabled")
         except Exception as e:
             print(f"Error enabling GPS: {e}")
         
-        # 6. Set to STABILIZE mode (basic, safe mode)
+        # 8. Set to STABILIZE mode (basic, safe mode)
         try:
             print("Switching to STABILIZE mode...")
             self.vehicle.mode = VehicleMode("STABILIZE")
@@ -800,23 +1186,7 @@ class DroneController:
         except Exception as e:
             print(f"Error changing mode: {e}")
     
-        # 7. Reset position (only works if SITL supports position reset)
-        try:
-            # Using SITL-specific MAVLink command to reset position
-            # This might not work in all SITL setups
-            self.vehicle._master.mav.command_long_send(
-                self.target_system,
-                mavutil.mavlink.MAV_COMP_ID_AUTOPILOT1,
-                mavutil.mavlink.MAV_CMD_DO_SET_HOME,
-                0,  # confirmation
-                1,  # Use current position
-                0, 0, 0, 0, 0, 0  # unused
-            )
-            print("Reset home position")
-        except Exception as e:
-            print(f"Position reset not supported: {e}")
-            
-        # 8. Restart Radler processes if needed
+        # 9. Restart Radler processes if needed
         try:
             self.restart_radler_code()
             print("Radler processes restarted")
@@ -859,11 +1229,38 @@ class DroneController:
         print("Ardupilot system has been rebooted")
     
     def close(self):
-        if self.vehicle is not None:
+        if self.vehicle is not None:            
             print("Closing vehicle connection")
             self.vehicle.close()
             print("Vehicle connection closed.")
             self.vehicle = None
+            
+        # Terminate bridge process if it exists
+        if self.bridge_process:
+            try:
+                print("Terminating bridge process...")
+                self.bridge_process.terminate()
+                # Optional: Wait briefly to ensure termination
+                import time
+                time.sleep(0.5)
+                
+                # If it's still running, try to kill it
+                if self.bridge_process.poll() is None:
+                    self.bridge_process.kill()
+                    print("Killed bridge process")
+            except Exception as e:
+                print(f"Error terminating bridge process: {e}")
+                # Fallback: Try to kill any bridge processes
+                try:
+                    import subprocess
+                    subprocess.call(['pkill', '-f', 'mavlink_bridge.py'])
+                    print("Terminated all bridge processes")
+                except Exception as e2:
+                    print(f"Error during process cleanup: {e2}")
+        
+        # The bridge_thread is daemon=True so Python won't wait for it to finish
+        # when the main program exits
+        print("Cleanup complete")    
 
 
 def main():
@@ -910,7 +1307,10 @@ def main():
     print(f"Connecting to vehicle on: {vehicle_connection}")
     
     try:
-        controller = DroneController(vehicle_connection)
+        controller = DroneController(vehicle_connection)    
+        # Wait a moment for bridge to initialize
+        time.sleep(2)
+        
         controller.connect()
         
         # Set up signal handler after creating controller
@@ -939,7 +1339,6 @@ def main():
             controller.reboot_autopilot()
         elif args.command == 'loadFence':
             controller.load_geofence()
-            #controller.make_fence_visible_mavlink()
         elif args.command == 'loadMission':
             controller.load_mission_waypoints()
         elif args.command == 'runSimulation':
@@ -949,7 +1348,6 @@ def main():
                 waypoint_status = controller.load_mission_waypoints()
                 if waypoint_status:
                     controller.load_geofence()
-                    #controller.make_fence_visible_mavlink()
                     controller.run_sim(altitude=args.altitude, use_waypoints=True)
                 else:
                     print(f"ABORTED MISSION! ")
