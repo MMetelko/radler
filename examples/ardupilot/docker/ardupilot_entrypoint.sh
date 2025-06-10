@@ -28,15 +28,24 @@ if [ ! -f "$LOCK_FILE" ]; then
   <CycloneDDS xmlns=\"https://cdds.io/config\">
   <Domain id=\"any\">
     <General>
-    <NetworkInterfaceAddress>${ARDUPILOT_RUN_HOST}</NetworkInterfaceAddress>
+      <NetworkInterfaceAddress>${ARDUPILOT_RUN_HOST}</NetworkInterfaceAddress>
+      <AllowMulticast>true</AllowMulticast>
     </General>
+    <Security>
+      <Authentication>
+        <Identity>
+          <IdentityCA>none</IdentityCA>
+        </Identity>
+        <Mode>none</Mode>
+      </Authentication>
+    </Security>
   </Domain>
   </CycloneDDS>" > ${USER_HOME}/cyclonedds.xml
 
   # Set the environment variable
   export CYCLONEDDS_URI=file://${USER_HOME}/cyclonedds.xml
   export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-  export ROS_DOMAIN_ID=0
+  #export ROS_DOMAIN_ID=0
 
   # setup ardupilot environment
   source ~/.ardupilot_env

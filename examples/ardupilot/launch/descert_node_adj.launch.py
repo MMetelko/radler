@@ -1,12 +1,21 @@
 import os
 import sys
-
 import launch
 import launch_ros.actions
+from launch.actions import SetEnvironmentVariable
 from launch_ros.actions import Node
 
 def generate_launch_description():
     ld = launch.LaunchDescription([
+        # Set RMW implementation to CycloneDDS
+        SetEnvironmentVariable(
+             name='RMW_IMPLEMENTATION',
+             value='rmw_cyclonedds_cpp'
+        ),
+        SetEnvironmentVariable(
+            name='CYCLONEDDS_URI',
+            value='file:///home/ardupilot/cyclonedds.xml'
+        ),
         launch.actions.DeclareLaunchArgument(name='fcu_url'),
         launch.actions.DeclareLaunchArgument(name='gcs_url'),
         launch.actions.DeclareLaunchArgument(name='tgt_system'),
