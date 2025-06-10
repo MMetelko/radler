@@ -31,14 +31,6 @@ if [ ! -f "$LOCK_FILE" ]; then
       <NetworkInterfaceAddress>${ARDUPILOT_RUN_HOST}</NetworkInterfaceAddress>
       <AllowMulticast>true</AllowMulticast>
     </General>
-    <Security>
-      <Authentication>
-        <Library>dds_security_auth</Library>
-        <IdentityCertificate>none</IdentityCertificate>
-        <IdentityCA>none</IdentityCA>
-        <PrivateKey>none</PrivateKey>
-      </Authentication>
-    </Security>
   </Domain>
   </CycloneDDS>" > ${USER_HOME}/cyclonedds.xml
 
