@@ -33,10 +33,10 @@ if [ ! -f "$LOCK_FILE" ]; then
     </General>
     <Security>
       <Authentication>
-        <Identity>
-          <IdentityCA>none</IdentityCA>
-        </Identity>
-        <Mode>none</Mode>
+        <Library>dds_security_auth</Library>
+        <IdentityCertificate>none</IdentityCertificate>
+        <IdentityCA>none</IdentityCA>
+        <PrivateKey>none</PrivateKey>
       </Authentication>
     </Security>
   </Domain>
