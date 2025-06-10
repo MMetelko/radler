@@ -54,6 +54,7 @@ def main():
         sock2.close()
 
 def forward_packets(sock_in, endpoint_out, label):
+    sock_out = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         print(f"Starting forwarding {label}: {sock_in.getsockname()} -> {endpoint_out}")
         count = 0
@@ -62,13 +63,15 @@ def forward_packets(sock_in, endpoint_out, label):
             data, addr = sock_in.recvfrom(65535)
             
             # Forward to other endpoint
-            sock_in.sendto(data, endpoint_out)
+            sock_out.sendto(data, endpoint_out)
             
             count += 1
             if count % 100 == 0:  # Log every 100 packets
                 print(f"{label}: Forwarded {count} packets")
     except Exception as e:
         print(f"Error in {label} forwarding: {e}")
+    finally:
+        sock_out.close()
 
 if __name__ == "__main__":
     main()
