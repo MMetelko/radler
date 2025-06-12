@@ -15,7 +15,7 @@ AFS_Gateway::AFS_Gateway()
 
     // Setup QoS settings to match previous configuration for ROS1 demo
     // For MAVLink, queue size 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
-    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(100)).best_effort();
+    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(150)).best_effort();
 
     // queue size 10 is good enough to capture FCS Diagnostics message updates at < 1Hz
     auto diagnostics_qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
