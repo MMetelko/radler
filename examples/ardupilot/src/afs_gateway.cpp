@@ -186,7 +186,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                         std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
                         std::to_string(lat) + "," +
                         std::to_string(lon) + "," +
-                        std::to_string(alt) + " (lat,long,alt)\n"
+                        std::to_string(alt) + " (lat,long,alt)\n";
 
                 // Store valid waypoint for future use
                 had_valid_waypoint = true;
