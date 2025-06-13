@@ -382,8 +382,8 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
     try { 
-            currentStatus.debug_data.error_msgs += "Inside mavlink_callback... ";
-            currentStatus.debug_data.error_msgs += "msgid = " + std::to_string(msg->msgid) + "...";
+            // currentStatus.debug_data.error_msgs += "Inside mavlink_callback... ";
+            // currentStatus.debug_data.error_msgs += "msgid = " + std::to_string(msg->msgid) + "...";
             total_mavlink_messages++;
 
             //if (msg->msgid == 33)
