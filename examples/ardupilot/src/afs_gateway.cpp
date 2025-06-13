@@ -81,43 +81,43 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
         radl_turn_off(radl_TIMEOUT, &o_f->battery_status);
 
         if (this->geofence_status_available || this->geofence_breach_detected) {
+            currentStatus.debug_data.mavlink_fs_info += "[" + std::to_string(this->node->now().seconds()) + "." + std::to_string(this->node->now().nanoseconds()/1000000) + "] ";
+            currentStatus.debug_data.mavlink_fs_info += "Fence status check: available=" + std::to_string(this->geofence_status_available) + 
+                                                        ", breach_detected=" + std::to_string(this->geofence_breach_detected) + "... ";
+
             // Check if we should clear a remembered breach
-            if (this->geofence_breach_detected && 
-                (this->node->now() - this->last_breach_time) > BREACH_MEMORY_DURATION) {
-                this->geofence_breach_detected = false;
+            if (this->geofence_breach_detected) {
+                auto time_since_breach = this->node->now() - this->last_breach_time;
+                currentStatus.debug_data.mavlink_fs_info += "Time since breach: " + std::to_string(time_since_breach.seconds()) + "s... ";
+
+                if (time_since_breach > BREACH_MEMORY_DURATION) {
+                    currentStatus.debug_data.mavlink_fs_info += "Clearing remembered breach (exceeded " + 
+                                                            std::to_string(BREACH_MEMORY_DURATION.count()) + "s)... ";
+                    this->geofence_breach_detected = false;
+                } else {
+                    currentStatus.debug_data.mavlink_fs_info += "Remembered breach still valid... ";
+                }
             }
 
             // Use either current status or remembered breach status
             uint8_t effective_breach_status = this->geofence_status_mailbox.breach_status;
+            currentStatus.debug_data.mavlink_fs_info += "Raw breach status: " + std::to_string(effective_breach_status) + "... ";
+
             if (this->geofence_breach_detected && effective_breach_status == 0) {
                 effective_breach_status = 1;  // Override with remembered breach
+                currentStatus.debug_data.mavlink_fs_info += "Overriding with remembered breach... ";
             }
+
+            currentStatus.debug_data.mavlink_fs_info += "Effective breach status: " + std::to_string(effective_breach_status) + "... ";
 
             // Add debugging for waypoint/geofence interaction
             if (effective_breach_status == 1) {
-                currentStatus.debug_data.error_msgs += "Geofence breach detected - checking waypoint state: ";
-                if (this->missionwaypoints_status_mailbox) {
-                    int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
-                    currentStatus.debug_data.error_msgs += 
-                        "seq=" + std::to_string(seq) + 
-                        ", waypoints.size=" + std::to_string(this->missionwaypoints_status_mailbox->waypoints.size()) + "\n";
-                    
-                    // Add additional info about current flight mode during breach
-                    if (this->autopilotstate_status_mailbox) {
-                        currentStatus.debug_data.error_msgs += "Flight mode during breach: " + 
-                            this->autopilotstate_status_mailbox->mode + "\n";
-                    }
-                    
-                    // Log timestamp of this debug info
-                    auto now = this->node->now();
-                    currentStatus.debug_data.error_msgs += "Breach/waypoint debug timestamp: " + 
-                        std::to_string(now.seconds()) + "." + 
-                        std::to_string(now.nanoseconds() / 1000000) + "s\n";
-                } else {
-                    currentStatus.debug_data.error_msgs += "Waypoint mailbox is null during breach\n";
-                }
+                currentStatus.debug_data.error_msgs += "\n[GEOFENCE BREACH] Type: " + 
+                    std::string(breach_types[this->geofence_status_mailbox.breach_type]) + 
+                    ", Count: " + std::to_string(this->geofence_status_mailbox.breach_count) + 
+                    ", Time: " + std::to_string(this->node->now().seconds()) + "s\n";
             }
-
+    
             o->geofence_status->breach_status = effective_breach_status;
             o->geofence_status->breach_count = this->geofence_status_mailbox.breach_count;
             o->geofence_status->breach_type = this->geofence_status_mailbox.breach_type;
@@ -128,7 +128,6 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                                             "\n  # Breaches = " + std::to_string(o->geofence_status->breach_count) +
                                             ", Breach Type = " + std::string(breach_types[this->geofence_status_mailbox.breach_type]) + ", "
                                             "\n  Breach Time = " + std::to_string(o->geofence_status->breach_time) + "ms (since boot of last breach)" + RESET + "\n";
-            //currentStatus.debug_data.mavlink_fs_info += "Fence Breach reached mailbox... ";
 
             if (this->geofence_breach_detected && effective_breach_status == 1) {
                 currentStatus.geofence_status += "[BREACH DETECTED WITHIN LAST " + 
@@ -136,9 +135,17 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                                             " SECONDS]\n";
             }
 
+            currentStatus.debug_data.mavlink_fs_info += "Geofence status updated successfully\n";
             this->geofence_status_available = false;
             radl_turn_off(radl_STALE, &o_f->geofence_status);
         } else {
+            // Add debug even when there's no breach to track normal operation
+            if ((int)(this->node->now().seconds()) % 10 == 0) {  // Only log once every 10 seconds to avoid spam
+                currentStatus.debug_data.mavlink_fs_info += "[" + std::to_string(this->node->now().seconds()) + "] ";
+                currentStatus.debug_data.mavlink_fs_info += "No geofence status update (available=" + 
+                                                        std::to_string(this->geofence_status_available) + 
+                                                        ", breach_detected=" + std::to_string(this->geofence_breach_detected) + ")\n";
+            }
             radl_turn_on(radl_STALE, &o_f->geofence_status);
         }
         radl_turn_off(radl_TIMEOUT, &o_f->geofence_status);
@@ -171,42 +178,29 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
         if (this->missionwaypoints_status_mailbox) {
             int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
+            int max_waypoints = ((int) *RADL_THIS->max_number_mission_waypoints);
 
-            double lat = this->missionwaypoints_status_mailbox->waypoints[seq].x_lat;
-            double lon = this->missionwaypoints_status_mailbox->waypoints[seq].y_long;
-            double alt = this->missionwaypoints_status_mailbox->waypoints[seq].z_alt;
+            // Ensure we access a valid index 
+            if (seq >= 0 && seq < max_waypoints) {
+                double lat = this->missionwaypoints_status_mailbox->waypoints[seq].x_lat;
+                double lon = this->missionwaypoints_status_mailbox->waypoints[seq].y_long;
+                double alt = this->missionwaypoints_status_mailbox->waypoints[seq].z_alt;
 
-            // Check if coordinates are valid
-            if (isValidCoordinate(lat, -90.0, 90.0) && 
-                isValidCoordinate(lon, -180.0, 180.0) && 
-                isValidCoordinate(alt, -1000.0, 100000.0)) {
+                std::string lat_str = isValidCoordinate(lat, -90.0, 90.0) ? std::to_string(lat) : "0.0";
+                std::string lon_str = isValidCoordinate(lon, -180.0, 180.0) ? std::to_string(lon) : "0.0";
+                std::string alt_str = isValidCoordinate(alt, -1000.0, 100000.0) ? std::to_string(alt) : "0.0";
 
                 currentStatus.current_waypoint = "Current Waypoint " +
                         std::to_string(seq) + "/" + 
-                        std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
-                        std::to_string(lat) + "," +
-                        std::to_string(lon) + "," +
-                        std::to_string(alt) + " (lat,long,alt)\n";
+                        std::to_string(max_waypoints - 1) + " (seq/total): " +
+                        lat_str + "," + lon_str + "," + alt_str + " (lat,long,alt)\n";
 
-                // Store valid waypoint for future use
-                had_valid_waypoint = true;
-                last_valid_seq = seq;
-                last_valid_lat = lat;
-                last_valid_lon = lon;
-                last_valid_alt = alt;
             } else {
-                // Invalid coordinates - use last valid if available
-                if (had_valid_waypoint) {
-                    currentStatus.current_waypoint = "Current Waypoint " +
-                            std::to_string(seq) + "/" + 
-                            std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
-                            "[Using last valid coordinates] " +
-                            std::to_string(last_valid_lat) + "," +
-                            std::to_string(last_valid_lon) + "," +
-                            std::to_string(last_valid_alt) + " (lat,long,alt)\n";
-                } else {
-                    currentStatus.current_waypoint = "Waiting for valid waypoint data\n";
-                }
+                // Invalid sequence number
+                currentStatus.current_waypoint = "Current Waypoint " +
+                        std::to_string(seq) + "/" + 
+                        std::to_string(max_waypoints - 1) + 
+                        " (seq/total): 0.0,0.0,0.0 (lat,long,alt)\n";
             }
         } else {
             currentStatus.current_waypoint = "Mission Way Points status mailbox is null\n";
@@ -358,17 +352,17 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 << currentStatus.geofence_status
                 << "..........................................\n"
                 << "Diagnostics: "
-                << currentStatus.diagnostics;
+                << currentStatus.diagnostics
                 // Used for debugging only
                 //<< "..........................................\n"
                 //<< "GPS Info: "
                 //<< currentStatus.debug_data.mavlink_gps_info
                 //<< " \n"
-                //<< "Fence Status Info: "
-                //<< currentStatus.debug_data.mavlink_fs_info
-                //<< " \n"
-                //<< "Errors: "
-                //<< currentStatus.debug_data.error_msgs;
+                << "Fence Status Info: "
+                << currentStatus.debug_data.mavlink_fs_info
+                << " \n"
+                << "Errors: "
+                << currentStatus.debug_data.error_msgs;
         
     } catch (const std::exception& e) {
         currentStatus.debug_data.error_msgs += std::string("Exception in step function: ") + e.what();
