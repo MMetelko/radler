@@ -18,14 +18,7 @@ AFS_Gateway::AFS_Gateway()
     node = rclcpp::Node::make_shared("afs_gateway");
 
     // Setup QoS settings to match previous configuration for ROS1 demo
-    // For MAVLink, queue size 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
-    //auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(1000)).best_effort();
-    //auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(1000))
-    //    .reliable() 
-    //    .durability_volatile();
-    // auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(1000))
-    //                 .reliable()
-    //                 .transient_local();
+    // Configuration to match /uas1/mavlink_source publisher setup
     auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(1000))
                     .best_effort()
                     .durability_volatile();
@@ -86,14 +79,14 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
         radl_turn_off(radl_TIMEOUT, &o_f->battery_status);
 
         if (this->geofence_status_available || this->geofence_breach_detected) {
-            currentStatus.debug_data.mavlink_fs_info += "[" + std::to_string(this->node->now().seconds()) + "." + std::to_string(this->node->now().nanoseconds()/1000000) + "] ";
-            currentStatus.debug_data.mavlink_fs_info += "Fence status check: available=" + std::to_string(this->geofence_status_available) + 
-                                                        ", breach_detected=" + std::to_string(this->geofence_breach_detected) + "... ";
+            // currentStatus.debug_data.mavlink_fs_info += "[" + std::to_string(this->node->now().seconds()) + "." + std::to_string(this->node->now().nanoseconds()/1000000) + "] ";
+            // currentStatus.debug_data.mavlink_fs_info += "Fence status check: available=" + std::to_string(this->geofence_status_available) + 
+            //                                             ", breach_detected=" + std::to_string(this->geofence_breach_detected) + "... ";
 
             // Check if we should clear a remembered breach
             if (this->geofence_breach_detected) {
                 auto time_since_breach = this->node->now() - this->last_breach_time;
-                currentStatus.debug_data.mavlink_fs_info += "Time since breach: " + std::to_string(time_since_breach.seconds()) + "s... ";
+                //currentStatus.debug_data.mavlink_fs_info += "Time since breach: " + std::to_string(time_since_breach.seconds()) + "s... ";
 
                 if (time_since_breach > BREACH_MEMORY_DURATION) {
                     currentStatus.debug_data.mavlink_fs_info += "Clearing remembered breach (exceeded " + 
@@ -106,22 +99,22 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
             // Use either current status or remembered breach status
             uint8_t effective_breach_status = this->geofence_status_mailbox.breach_status;
-            currentStatus.debug_data.mavlink_fs_info += "Raw breach status: " + std::to_string(effective_breach_status) + "... ";
+            //currentStatus.debug_data.mavlink_fs_info += "Raw breach status: " + std::to_string(effective_breach_status) + "... ";
 
             if (this->geofence_breach_detected && effective_breach_status == 0) {
                 effective_breach_status = 1;  // Override with remembered breach
-                currentStatus.debug_data.mavlink_fs_info += "Overriding with remembered breach... ";
+                //currentStatus.debug_data.mavlink_fs_info += "Overriding with remembered breach... ";
             }
 
-            currentStatus.debug_data.mavlink_fs_info += "Effective breach status: " + std::to_string(effective_breach_status) + "... ";
+            //currentStatus.debug_data.mavlink_fs_info += "Effective breach status: " + std::to_string(effective_breach_status) + "... ";
 
             // Add debugging for waypoint/geofence interaction
-            if (effective_breach_status == 1) {
-                currentStatus.debug_data.error_msgs += "\n[GEOFENCE BREACH] Type: " + 
-                    std::string(breach_types[this->geofence_status_mailbox.breach_type]) + 
-                    ", Count: " + std::to_string(this->geofence_status_mailbox.breach_count) + 
-                    ", Time: " + std::to_string(this->node->now().seconds()) + "s\n";
-            }
+            // if (effective_breach_status == 1) {
+            //     currentStatus.debug_data.error_msgs += "\n[GEOFENCE BREACH] Type: " + 
+            //         std::string(breach_types[this->geofence_status_mailbox.breach_type]) + 
+            //         ", Count: " + std::to_string(this->geofence_status_mailbox.breach_count) + 
+            //         ", Time: " + std::to_string(this->node->now().seconds()) + "s\n";
+            // }
     
             o->geofence_status->breach_status = effective_breach_status;
             o->geofence_status->breach_count = this->geofence_status_mailbox.breach_count;
@@ -140,7 +133,7 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                                             " SECONDS]\n";
             }
 
-            currentStatus.debug_data.mavlink_fs_info += "Geofence status updated successfully\n";
+            //currentStatus.debug_data.mavlink_fs_info += "Geofence status updated successfully\n";
             this->geofence_status_available = false;
             radl_turn_off(radl_STALE, &o_f->geofence_status);
         } else {
@@ -361,17 +354,17 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 << currentStatus.geofence_status
                 << "..........................................\n"
                 << "Diagnostics: "
-                << currentStatus.diagnostics
+                << currentStatus.diagnostics;
                 // Used for debugging only
                 //<< "..........................................\n"
                 //<< "GPS Info: "
                 //<< currentStatus.debug_data.mavlink_gps_info
                 //<< " \n"
-                << "Fence Status Info: "
-                << currentStatus.debug_data.mavlink_fs_info
-                << " \n"
-                << "Errors: "
-                << currentStatus.debug_data.error_msgs;
+                // << "Fence Status Info: "
+                // << currentStatus.debug_data.mavlink_fs_info
+                // << " \n"
+                // << "Errors: "
+                // << currentStatus.debug_data.error_msgs;
         
     } catch (const std::exception& e) {
         currentStatus.debug_data.error_msgs += std::string("Exception in step function: ") + e.what();
@@ -427,13 +420,13 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
             //else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
             else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
             {
-                fence_status_messages++;
-                currentStatus.debug_data.mavlink_fs_info += "RECEIVED FENCE_STATUS message, payload size: " + 
-                    std::to_string(msg->payload64.size()) + "\n";
-                currentStatus.debug_data.mavlink_fs_info = "MAVLink stats: Total msgs=" + 
-                    std::to_string(total_mavlink_messages) + ", Fence msgs=" + 
-                    std::to_string(fence_status_messages) + "\n" + 
-                    currentStatus.debug_data.mavlink_fs_info;
+                 fence_status_messages++;
+                // currentStatus.debug_data.mavlink_fs_info += "RECEIVED FENCE_STATUS message, payload size: " + 
+                //     std::to_string(msg->payload64.size()) + "\n";
+                // currentStatus.debug_data.mavlink_fs_info = "MAVLink stats: Total msgs=" + 
+                //     std::to_string(total_mavlink_messages) + ", Fence msgs=" + 
+                //     std::to_string(fence_status_messages) + "\n" + 
+                //     currentStatus.debug_data.mavlink_fs_info;
                 //currentStatus.debug_data.mavlink_fs_info += "Found msgid = 162 (Fence Breach message), now to decode...";
 
                 size_t fs_payload_size = MAVLINK_MSG_ID_FENCE_STATUS_LEN;  // Length of 9
@@ -450,13 +443,13 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
 
                     //const uint64_t* fs_data_ptr = &msg->payload64[0];
                     memcpy(mavlink_fs_msg.payload64, &msg->payload64[0], fs_payload_size);
-                    currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message copied...";
+                    //currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message copied...";
                     // for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_fs_msg.payload64)/sizeof(mavlink_fs_msg.payload64[0]); ++i) {
                     //     mavlink_fs_msg.payload64[i] = msg->payload64[i];
                     // }
         
                     mavlink_msg_fence_status_decode(&mavlink_fs_msg, &this->geofence_status_mailbox);
-                    currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message decoded...";
+                    //currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message decoded...";
                     this->geofence_status_available = true;
                     this->geofence_status_timestamp = this->node->now(); 
                     
