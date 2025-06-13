@@ -13,7 +13,12 @@ AFS_Gateway::AFS_Gateway()
     : geofence_breach_detected(false),
       last_breach_time(rclcpp::Time(0)),
       BREACH_MEMORY_DURATION(10),
-      MAX_BREACH_HISTORY(10)
+      MAX_BREACH_HISTORY(10),
+      had_valid_waypoint(false),
+      last_valid_seq(-1),
+      last_valid_lat(0.0),
+      last_valid_lon(0.0),
+      last_valid_alt(0.0)
 {    
     node = rclcpp::Node::make_shared("afs_gateway");
 
@@ -88,6 +93,31 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 effective_breach_status = 1;  // Override with remembered breach
             }
 
+            // Add debugging for waypoint/geofence interaction
+            if (effective_breach_status == 1) {
+                currentStatus.debug_data.error_msgs += "Geofence breach detected - checking waypoint state: ";
+                if (this->missionwaypoints_status_mailbox) {
+                    int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
+                    currentStatus.debug_data.error_msgs += 
+                        "seq=" + std::to_string(seq) + 
+                        ", waypoints.size=" + std::to_string(this->missionwaypoints_status_mailbox->waypoints.size()) + "\n";
+                    
+                    // Add additional info about current flight mode during breach
+                    if (this->autopilotstate_status_mailbox) {
+                        currentStatus.debug_data.error_msgs += "Flight mode during breach: " + 
+                            this->autopilotstate_status_mailbox->mode + "\n";
+                    }
+                    
+                    // Log timestamp of this debug info
+                    auto now = this->node->now();
+                    currentStatus.debug_data.error_msgs += "Breach/waypoint debug timestamp: " + 
+                        std::to_string(now.seconds()) + "." + 
+                        std::to_string(now.nanoseconds() / 1000000) + "s\n";
+                } else {
+                    currentStatus.debug_data.error_msgs += "Waypoint mailbox is null during breach\n";
+                }
+            }
+
             o->geofence_status->breach_status = effective_breach_status;
             o->geofence_status->breach_count = this->geofence_status_mailbox.breach_count;
             o->geofence_status->breach_type = this->geofence_status_mailbox.breach_type;
@@ -148,6 +178,13 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 double lon = this->missionwaypoints_status_mailbox->waypoints[seq].y_long;
                 double alt = this->missionwaypoints_status_mailbox->waypoints[seq].z_alt;
 
+                // Store valid waypoint for future use
+                had_valid_waypoint = true;
+                last_valid_seq = seq;
+                last_valid_lat = lat;
+                last_valid_lon = lon;
+                last_valid_alt = alt;
+
                 currentStatus.current_waypoint = "Current Waypoint " +
                         std::to_string(seq) + "/" + 
                         std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
@@ -155,10 +192,19 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                         formatWaypointCoordinate(lon, -180.0, 180.0) + "," + // Longitude range: -180 to 180
                         formatWaypointCoordinate(alt, -1000.0, 100000.0) + " (lat,long,alt)\n"; // Reasonable alt range
             } else {
-                currentStatus.current_waypoint = "Invalid waypoint sequence number\n";
+                // Use last valid waypoint information if available
+                if (had_valid_waypoint) {
+                    currentStatus.current_waypoint = "Invalid waypoint sequence number (" + std::to_string(seq) + ")\n" +
+                        "Last valid waypoint: " + std::to_string(last_valid_seq) + "/" + 
+                        std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
+                        formatWaypointCoordinate(last_valid_lat, -90.0, 90.0) + "," +
+                        formatWaypointCoordinate(last_valid_lon, -180.0, 180.0) + "," +
+                        formatWaypointCoordinate(last_valid_alt, -1000.0, 100000.0) + " (lat,long,alt)\n";
+                } else {
+                    currentStatus.current_waypoint = "Invalid waypoint sequence number (" + std::to_string(seq) + ")\n";
+                }
             }
-        }
-        else {
+        } else {
             currentStatus.current_waypoint = "Mission Way Points status mailbox is null\n";
         }
 

@@ -93,6 +93,12 @@ class AFS_Gateway
         rclcpp::Subscription<mavros_msgs::msg::WaypointList>::SharedPtr mavros_missionwaypoints_subscriber;
         mavros_msgs::msg::WaypointList::ConstSharedPtr missionwaypoints_status_mailbox;
         void mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::ConstSharedPtr mws);
+        // Last valid waypoint tracking
+        bool had_valid_waypoint;
+        int last_valid_seq;
+        double last_valid_lat;
+        double last_valid_lon;
+        double last_valid_alt;
 
         //rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr mavros_globalposition_subscriber;
         //sensor_msgs::msg::NavSatFix::ConstSharedPtr globalposition_status_mailbox;
