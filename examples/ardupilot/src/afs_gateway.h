@@ -50,6 +50,12 @@ class AFS_Gateway
             DebugInfo debug_data;
         };
 
+        struct GeofenceBreach {
+            rclcpp::Time timestamp;
+            uint8_t breach_type;
+            uint32_t breach_count;
+        };
+
         std::shared_ptr<rclcpp::Node> node;
 
         rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr mavros_battery_subscriber;
@@ -60,6 +66,11 @@ class AFS_Gateway
         mavlink_fence_status_t geofence_status_mailbox;
         rclcpp::Time geofence_status_timestamp;
         bool geofence_status_available;
+        bool geofence_breach_detected;
+        rclcpp::Time last_breach_time;
+        static constexpr std::chrono::seconds BREACH_MEMORY_DURATION{10};
+        std::vector<GeofenceBreach> recent_breaches;
+        static constexpr size_t MAX_BREACH_HISTORY = 10;
 
         mavlink_global_position_int_t globalposition_status_mailbox;
         rclcpp::Time global_position_timestamp;
