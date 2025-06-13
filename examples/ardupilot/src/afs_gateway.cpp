@@ -19,7 +19,7 @@ AFS_Gateway::AFS_Gateway()
 
     // Setup QoS settings to match previous configuration for ROS1 demo
     // Configuration to match /uas1/mavlink_source publisher setup
-    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(1000))
+    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(500))
                     .best_effort()
                     .durability_volatile();
 
