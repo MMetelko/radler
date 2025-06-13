@@ -127,11 +127,11 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                                             ", Breach Type = " + std::string(breach_types[this->geofence_status_mailbox.breach_type]) + ", "
                                             "\n  Breach Time = " + std::to_string(o->geofence_status->breach_time) + "ms (since boot of last breach)" + RESET + "\n";
 
-            if (this->geofence_breach_detected && effective_breach_status == 1) {
-                currentStatus.geofence_status += "[BREACH DETECTED WITHIN LAST " + 
-                                            std::to_string(BREACH_MEMORY_DURATION.count()) + 
-                                            " SECONDS]\n";
-            }
+            // if (this->geofence_breach_detected && effective_breach_status == 1) {
+            //     currentStatus.geofence_status += "[BREACH DETECTED WITHIN LAST " + 
+            //                                 std::to_string(BREACH_MEMORY_DURATION.count()) + 
+            //                                 " SECONDS]\n";
+            // }
 
             //currentStatus.debug_data.mavlink_fs_info += "Geofence status updated successfully\n";
             this->geofence_status_available = false;
@@ -181,29 +181,6 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
             currentStatus.current_waypoint = "Current Waypoint (seq/total): " +
                         std::to_string(seq) + "/" + 
                         std::to_string(max_waypoints - 1) + "\n";
-
-            // Ensure we access a valid index 
-            // if (seq >= 0 && seq < max_waypoints) {
-            //     double lat = this->missionwaypoints_status_mailbox->waypoints[seq].x_lat;
-            //     double lon = this->missionwaypoints_status_mailbox->waypoints[seq].y_long;
-            //     double alt = this->missionwaypoints_status_mailbox->waypoints[seq].z_alt;
-
-            //     std::string lat_str = isValidCoordinate(lat, -90.0, 90.0) ? std::to_string(lat) : "0.0";
-            //     std::string lon_str = isValidCoordinate(lon, -180.0, 180.0) ? std::to_string(lon) : "0.0";
-            //     std::string alt_str = isValidCoordinate(alt, -1000.0, 100000.0) ? std::to_string(alt) : "0.0";
-
-            //     currentStatus.current_waypoint = "Current Waypoint " +
-            //             std::to_string(seq) + "/" + 
-            //             std::to_string(max_waypoints - 1) + " (seq/total): " +
-            //             lat_str + "," + lon_str + "," + alt_str + " (lat,long,alt)\n";
-
-            // } else {
-            //     // Invalid sequence number
-            //     currentStatus.current_waypoint = "Current Waypoint " +
-            //             std::to_string(seq) + "/" + 
-            //             std::to_string(max_waypoints - 1) + 
-            //             " (seq/total): 0.0,0.0,0.0 (lat,long,alt)\n";
-            // }
         } else {
             currentStatus.current_waypoint = "Mission Way Points status mailbox is null\n";
         }
