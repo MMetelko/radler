@@ -18,7 +18,7 @@ AFS_Gateway::AFS_Gateway()
     //auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(200)).best_effort();
     auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(1000))
         .reliable() 
-        //.durability_volatile()
+        .durability_volatile();
 
     // queue size 10 is good enough to capture FCS Diagnostics message updates at < 1Hz
     auto diagnostics_qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
