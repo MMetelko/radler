@@ -72,6 +72,9 @@ class AFS_Gateway
         const std::chrono::seconds BREACH_MEMORY_DURATION;
         std::vector<GeofenceBreach> recent_breaches;
         const size_t MAX_BREACH_HISTORY;
+        unsigned long total_mavlink_messages;
+        unsigned long fence_status_messages;
+        unsigned long gps_status_messages;
 
         mavlink_global_position_int_t globalposition_status_mailbox;
         rclcpp::Time global_position_timestamp;
@@ -93,12 +96,6 @@ class AFS_Gateway
         rclcpp::Subscription<mavros_msgs::msg::WaypointList>::SharedPtr mavros_missionwaypoints_subscriber;
         mavros_msgs::msg::WaypointList::ConstSharedPtr missionwaypoints_status_mailbox;
         void mavros_missionwaypoints_callback(const mavros_msgs::msg::WaypointList::ConstSharedPtr mws);
-        // Last valid waypoint tracking
-        bool had_valid_waypoint;
-        int last_valid_seq;
-        double last_valid_lat;
-        double last_valid_lon;
-        double last_valid_alt;
 
         //rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr mavros_globalposition_subscriber;
         //sensor_msgs::msg::NavSatFix::ConstSharedPtr globalposition_status_mailbox;
