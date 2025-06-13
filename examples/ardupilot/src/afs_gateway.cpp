@@ -389,11 +389,11 @@ void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedP
             //if (msg->msgid == 33)
             if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
             {
-                gps_status_messages++;
-                currentStatus.debug_data.mavlink_fs_info = "MAVLink stats: Total msgs=" + 
-                    std::to_string(total_mavlink_messages) + ", GPS msgs=" + 
-                    std::to_string(gps_status_messages) + "\n" + 
-                    currentStatus.debug_data.mavlink_fs_info;
+                // gps_status_messages++;
+                // currentStatus.debug_data.mavlink_fs_info = "MAVLink stats: Total msgs=" + 
+                //     std::to_string(total_mavlink_messages) + ", GPS msgs=" + 
+                //     std::to_string(gps_status_messages) + "\n" + 
+                //     currentStatus.debug_data.mavlink_fs_info;
                 //currentStatus.debug_data.mavlink_gps_info += "Found msgid = 33 (GPS location message), now to decode...";
                 size_t gp_payload_size = MAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN; // length is 28
                 size_t expected_payload64_size = (gp_payload_size + 7) / 8;
