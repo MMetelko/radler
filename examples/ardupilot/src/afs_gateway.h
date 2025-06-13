@@ -69,9 +69,9 @@ class AFS_Gateway
         bool geofence_status_available;
         bool geofence_breach_detected;
         rclcpp::Time last_breach_time;
-        static constexpr std::chrono::seconds BREACH_MEMORY_DURATION{10};
+        const std::chrono::seconds BREACH_MEMORY_DURATION;
         std::vector<GeofenceBreach> recent_breaches;
-        static constexpr size_t MAX_BREACH_HISTORY = 10;
+        const size_t MAX_BREACH_HISTORY;
 
         mavlink_global_position_int_t globalposition_status_mailbox;
         rclcpp::Time global_position_timestamp;

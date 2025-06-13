@@ -11,7 +11,9 @@ const char* breach_types[] = {"None", "Min Altitude", "Max Altitude", "Fence Bou
 
 AFS_Gateway::AFS_Gateway()
     : geofence_breach_detected(false),
-      last_breach_time(rclcpp::Time(0))
+      last_breach_time(rclcpp::Time(0)),
+      BREACH_MEMORY_DURATION(10),
+      MAX_BREACH_HISTORY(10)
 {    
     node = rclcpp::Node::make_shared("afs_gateway");
 
