@@ -19,10 +19,10 @@ AFS_Gateway::AFS_Gateway()
 
     // Setup QoS settings to match previous configuration for ROS1 demo
     // For MAVLink, queue size 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
-    //auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(200)).best_effort();
-    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(1000))
-        .reliable() 
-        .durability_volatile();
+    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(500)).best_effort();
+    //auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(1000))
+    //    .reliable() 
+    //    .durability_volatile();
 
     // queue size 10 is good enough to capture FCS Diagnostics message updates at < 1Hz
     auto diagnostics_qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
@@ -179,28 +179,32 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
             int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
             int max_waypoints = ((int) *RADL_THIS->max_number_mission_waypoints);
 
+            currentStatus.current_waypoint = "Current Waypoint (seq/total): " +
+                        std::to_string(seq) + "/" + 
+                        std::to_string(max_waypoints - 1) + "\n";
+
             // Ensure we access a valid index 
-            if (seq >= 0 && seq < max_waypoints) {
-                double lat = this->missionwaypoints_status_mailbox->waypoints[seq].x_lat;
-                double lon = this->missionwaypoints_status_mailbox->waypoints[seq].y_long;
-                double alt = this->missionwaypoints_status_mailbox->waypoints[seq].z_alt;
+            // if (seq >= 0 && seq < max_waypoints) {
+            //     double lat = this->missionwaypoints_status_mailbox->waypoints[seq].x_lat;
+            //     double lon = this->missionwaypoints_status_mailbox->waypoints[seq].y_long;
+            //     double alt = this->missionwaypoints_status_mailbox->waypoints[seq].z_alt;
 
-                std::string lat_str = isValidCoordinate(lat, -90.0, 90.0) ? std::to_string(lat) : "0.0";
-                std::string lon_str = isValidCoordinate(lon, -180.0, 180.0) ? std::to_string(lon) : "0.0";
-                std::string alt_str = isValidCoordinate(alt, -1000.0, 100000.0) ? std::to_string(alt) : "0.0";
+            //     std::string lat_str = isValidCoordinate(lat, -90.0, 90.0) ? std::to_string(lat) : "0.0";
+            //     std::string lon_str = isValidCoordinate(lon, -180.0, 180.0) ? std::to_string(lon) : "0.0";
+            //     std::string alt_str = isValidCoordinate(alt, -1000.0, 100000.0) ? std::to_string(alt) : "0.0";
 
-                currentStatus.current_waypoint = "Current Waypoint " +
-                        std::to_string(seq) + "/" + 
-                        std::to_string(max_waypoints - 1) + " (seq/total): " +
-                        lat_str + "," + lon_str + "," + alt_str + " (lat,long,alt)\n";
+            //     currentStatus.current_waypoint = "Current Waypoint " +
+            //             std::to_string(seq) + "/" + 
+            //             std::to_string(max_waypoints - 1) + " (seq/total): " +
+            //             lat_str + "," + lon_str + "," + alt_str + " (lat,long,alt)\n";
 
-            } else {
-                // Invalid sequence number
-                currentStatus.current_waypoint = "Current Waypoint " +
-                        std::to_string(seq) + "/" + 
-                        std::to_string(max_waypoints - 1) + 
-                        " (seq/total): 0.0,0.0,0.0 (lat,long,alt)\n";
-            }
+            // } else {
+            //     // Invalid sequence number
+            //     currentStatus.current_waypoint = "Current Waypoint " +
+            //             std::to_string(seq) + "/" + 
+            //             std::to_string(max_waypoints - 1) + 
+            //             " (seq/total): 0.0,0.0,0.0 (lat,long,alt)\n";
+            // }
         } else {
             currentStatus.current_waypoint = "Mission Way Points status mailbox is null\n";
         }
