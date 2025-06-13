@@ -19,6 +19,7 @@
 #include <string>
 #include <chrono>
 #include <ctime>
+#include <cmath>
 #include <builtin_interfaces/msg/time.hpp>
 
 using namespace std;
@@ -76,6 +77,8 @@ class AFS_Gateway
         rclcpp::Time global_position_timestamp;
         bool global_position_status_available;
         void mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs);
+        std::string formatWaypointCoordinate(double value, double minValue, double maxValue);
+        bool isValidCoordinate(double value, double minValue, double maxValue);
 
         rclcpp::Subscription<mavros_msgs::msg::GPSRAW>::SharedPtr mavros_gpsraw_subscriber;
         mavros_msgs::msg::GPSRAW::ConstSharedPtr gps_status_mailbox;

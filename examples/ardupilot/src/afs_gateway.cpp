@@ -10,6 +10,8 @@ const char* breach_types[] = {"None", "Min Altitude", "Max Altitude", "Fence Bou
 
 
 AFS_Gateway::AFS_Gateway()
+    : geofence_breach_detected(false),
+      last_breach_time(rclcpp::Time(0))
 {    
     node = rclcpp::Node::make_shared("afs_gateway");
 
@@ -36,8 +38,6 @@ AFS_Gateway::AFS_Gateway()
     current_heartbeat_loss_duration = 0.0;
     geofence_status_available = false;
     global_position_status_available = false;
-    geofence_breach_detected(false),
-    last_breach_time(rclcpp::Time(0, 0, RCL_ROS_TIME)), // Initialize with zero time
 
     currentStatus.battery_status = "";
     currentStatus.autopilot_mode = "";
@@ -458,7 +458,7 @@ std::string AFS_Gateway::formatTimestamp(const builtin_interfaces::msg::Time& st
 }
 
 // Helper function to check if coordinate value is valid
-bool isValidCoordinate(double value, double minValue, double maxValue) {
+bool AFS_Gateway::isValidCoordinate(double value, double minValue, double maxValue) {
     return !std::isnan(value) && !std::isinf(value) && 
            value >= minValue && value <= maxValue;
 }
