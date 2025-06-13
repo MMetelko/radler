@@ -172,11 +172,21 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
         if (this->missionwaypoints_status_mailbox) {
             int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
 
-            // Ensure seq is within bounds
-            if (seq >= 0 && seq < this->missionwaypoints_status_mailbox->waypoints.size()) {
-                double lat = this->missionwaypoints_status_mailbox->waypoints[seq].x_lat;
-                double lon = this->missionwaypoints_status_mailbox->waypoints[seq].y_long;
-                double alt = this->missionwaypoints_status_mailbox->waypoints[seq].z_alt;
+            double lat = this->missionwaypoints_status_mailbox->waypoints[seq].x_lat;
+            double lon = this->missionwaypoints_status_mailbox->waypoints[seq].y_long;
+            double alt = this->missionwaypoints_status_mailbox->waypoints[seq].z_alt;
+
+            // Check if coordinates are valid
+            if (isValidCoordinate(lat, -90.0, 90.0) && 
+                isValidCoordinate(lon, -180.0, 180.0) && 
+                isValidCoordinate(alt, -1000.0, 100000.0)) {
+
+                currentStatus.current_waypoint = "Current Waypoint " +
+                        std::to_string(seq) + "/" + 
+                        std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
+                        std::to_string(lat) + "," +
+                        std::to_string(lon) + "," +
+                        std::to_string(alt) + " (lat,long,alt)\n"
 
                 // Store valid waypoint for future use
                 had_valid_waypoint = true;
@@ -184,24 +194,18 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 last_valid_lat = lat;
                 last_valid_lon = lon;
                 last_valid_alt = alt;
-
-                currentStatus.current_waypoint = "Current Waypoint " +
-                        std::to_string(seq) + "/" + 
-                        std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
-                        formatWaypointCoordinate(lat, -90.0, 90.0) + "," +  // Latitude range: -90 to 90
-                        formatWaypointCoordinate(lon, -180.0, 180.0) + "," + // Longitude range: -180 to 180
-                        formatWaypointCoordinate(alt, -1000.0, 100000.0) + " (lat,long,alt)\n"; // Reasonable alt range
             } else {
-                // Use last valid waypoint information if available
+                // Invalid coordinates - use last valid if available
                 if (had_valid_waypoint) {
-                    currentStatus.current_waypoint = "Invalid waypoint sequence number (" + std::to_string(seq) + ")\n" +
-                        "Last valid waypoint: " + std::to_string(last_valid_seq) + "/" + 
-                        std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
-                        formatWaypointCoordinate(last_valid_lat, -90.0, 90.0) + "," +
-                        formatWaypointCoordinate(last_valid_lon, -180.0, 180.0) + "," +
-                        formatWaypointCoordinate(last_valid_alt, -1000.0, 100000.0) + " (lat,long,alt)\n";
+                    currentStatus.current_waypoint = "Current Waypoint " +
+                            std::to_string(seq) + "/" + 
+                            std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
+                            "[Using last valid coordinates] " +
+                            std::to_string(last_valid_lat) + "," +
+                            std::to_string(last_valid_lon) + "," +
+                            std::to_string(last_valid_alt) + " (lat,long,alt)\n";
                 } else {
-                    currentStatus.current_waypoint = "Invalid waypoint sequence number (" + std::to_string(seq) + ")\n";
+                    currentStatus.current_waypoint = "Waiting for valid waypoint data\n";
                 }
             }
         } else {
