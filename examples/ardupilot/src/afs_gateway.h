@@ -19,6 +19,7 @@
 #include <string>
 #include <chrono>
 #include <ctime>
+#include <cmath>
 #include <builtin_interfaces/msg/time.hpp>
 
 using namespace std;
@@ -50,6 +51,12 @@ class AFS_Gateway
             DebugInfo debug_data;
         };
 
+        struct GeofenceBreach {
+            rclcpp::Time timestamp;
+            uint8_t breach_type;
+            uint32_t breach_count;
+        };
+
         std::shared_ptr<rclcpp::Node> node;
 
         rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr mavros_battery_subscriber;
@@ -60,11 +67,21 @@ class AFS_Gateway
         mavlink_fence_status_t geofence_status_mailbox;
         rclcpp::Time geofence_status_timestamp;
         bool geofence_status_available;
+        bool geofence_breach_detected;
+        rclcpp::Time last_breach_time;
+        const std::chrono::seconds BREACH_MEMORY_DURATION;
+        std::vector<GeofenceBreach> recent_breaches;
+        const size_t MAX_BREACH_HISTORY;
+        unsigned long total_mavlink_messages;
+        unsigned long fence_status_messages;
+        unsigned long gps_status_messages;
 
         mavlink_global_position_int_t globalposition_status_mailbox;
         rclcpp::Time global_position_timestamp;
         bool global_position_status_available;
         void mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr fs);
+        std::string formatWaypointCoordinate(double value, double minValue, double maxValue);
+        bool isValidCoordinate(double value, double minValue, double maxValue);
 
         rclcpp::Subscription<mavros_msgs::msg::GPSRAW>::SharedPtr mavros_gpsraw_subscriber;
         mavros_msgs::msg::GPSRAW::ConstSharedPtr gps_status_mailbox;

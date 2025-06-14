@@ -376,7 +376,7 @@ class DroneController:
             )
             
             start_time = time.time()
-            timeout = 30
+            timeout = 60
             
             # Process all waypoints
             uploaded_waypoints = 0
@@ -528,7 +528,7 @@ class DroneController:
             
             # Wait for mission request
             ack_received = False
-            for i in range(30):  # Timeout after 15 seconds
+            for i in range(30):  # Timeout after 30 seconds
                 msg = master.recv_match(type=['MISSION_REQUEST_INT', 'MISSION_REQUEST', 'MISSION_ACK'], blocking=True, timeout=1)
                 if msg is not None:
                     print(f"Received {msg.get_type()} message: {msg}")
@@ -580,7 +580,7 @@ class DroneController:
             self.vehicle.commands.download()
             
             # Wait for the download to complete with timeout
-            download_timeout = 10  # seconds
+            download_timeout = 30  # seconds
             start_time = time.time()
             while not self.vehicle.commands.wait_ready(timeout=1):
                 if time.time() - start_time > download_timeout:
@@ -1175,7 +1175,7 @@ class DroneController:
             
             # Wait with reasonable timeout
             start_time = time.time()
-            while self.vehicle.mode.name != 'STABILIZE' and time.time() - start_time < 10:
+            while self.vehicle.mode.name != 'STABILIZE' and time.time() - start_time < 30:
                 print(f"Current mode: {self.vehicle.mode.name}, waiting for STABILIZE...")
                 time.sleep(1)
                 
