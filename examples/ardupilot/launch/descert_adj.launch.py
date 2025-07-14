@@ -3,11 +3,21 @@ import sys
 
 import launch
 import launch_ros.actions
+from launch.actions import SetEnvironmentVariable
 from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
     ld = launch.LaunchDescription([
+        # Set RMW implementation to CycloneDDS
+        # SetEnvironmentVariable(
+        #     name='RMW_IMPLEMENTATION',
+        #     value='rmw_cyclonedds_cpp'
+        # ),
+        # SetEnvironmentVariable(
+        #     name='CYCLONEDDS_URI',
+        #     value='file:///etc/cyclonedds.xml'
+        # ),
         launch.actions.DeclareLaunchArgument(
             name='fcu_url',
             default_value='udp://127.0.0.1:14550@'
