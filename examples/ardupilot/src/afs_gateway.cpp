@@ -10,12 +10,18 @@ const char* breach_types[] = {"None", "Min Altitude", "Max Altitude", "Fence Bou
 
 
 AFS_Gateway::AFS_Gateway()
+    : geofence_breach_detected(false),
+      last_breach_time(rclcpp::Time(0)),
+      BREACH_MEMORY_DURATION(10),
+      MAX_BREACH_HISTORY(10)
 {    
     node = rclcpp::Node::make_shared("afs_gateway");
 
     // Setup QoS settings to match previous configuration for ROS1 demo
-    // For MAVLink, queue size 20 needed as geofence status message is one of the many mvlink messages arriving at 120Hz and must be filtered at callback without loss
-    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(150)).best_effort();
+    // Configuration to match /uas1/mavlink_source publisher setup
+    auto mavlink_qos = rclcpp::QoS(rclcpp::KeepLast(1000))
+                    .best_effort()
+                    .durability_volatile();
 
     // queue size 10 is good enough to capture FCS Diagnostics message updates at < 1Hz
     auto diagnostics_qos = rclcpp::QoS(rclcpp::KeepLast(10)).reliable();
@@ -33,6 +39,10 @@ AFS_Gateway::AFS_Gateway()
     current_heartbeat_loss_duration = 0.0;
     geofence_status_available = false;
     global_position_status_available = false;
+
+    total_mavlink_messages = 0;
+    fence_status_messages = 0;
+    gps_status_messages = 0;
 
     currentStatus.battery_status = "";
     currentStatus.autopilot_mode = "";
@@ -68,22 +78,72 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
         }
         radl_turn_off(radl_TIMEOUT, &o_f->battery_status);
 
-        if (this->geofence_status_available) {
-            o->geofence_status->breach_status = this->geofence_status_mailbox.breach_status;
+        if (this->geofence_status_available || this->geofence_breach_detected) {
+            // currentStatus.debug_data.mavlink_fs_info += "[" + std::to_string(this->node->now().seconds()) + "." + std::to_string(this->node->now().nanoseconds()/1000000) + "] ";
+            // currentStatus.debug_data.mavlink_fs_info += "Fence status check: available=" + std::to_string(this->geofence_status_available) + 
+            //                                             ", breach_detected=" + std::to_string(this->geofence_breach_detected) + "... ";
+
+            // Check if we should clear a remembered breach
+            if (this->geofence_breach_detected) {
+                auto time_since_breach = this->node->now() - this->last_breach_time;
+                //currentStatus.debug_data.mavlink_fs_info += "Time since breach: " + std::to_string(time_since_breach.seconds()) + "s... ";
+
+                if (time_since_breach > BREACH_MEMORY_DURATION) {
+                    currentStatus.debug_data.mavlink_fs_info += "Clearing remembered breach (exceeded " + 
+                                                            std::to_string(BREACH_MEMORY_DURATION.count()) + "s)... ";
+                    this->geofence_breach_detected = false;
+                } else {
+                    currentStatus.debug_data.mavlink_fs_info += "Remembered breach still valid... ";
+                }
+            }
+
+            // Use either current status or remembered breach status
+            uint8_t effective_breach_status = this->geofence_status_mailbox.breach_status;
+            //currentStatus.debug_data.mavlink_fs_info += "Raw breach status: " + std::to_string(effective_breach_status) + "... ";
+
+            if (this->geofence_breach_detected && effective_breach_status == 0) {
+                effective_breach_status = 1;  // Override with remembered breach
+                //currentStatus.debug_data.mavlink_fs_info += "Overriding with remembered breach... ";
+            }
+
+            //currentStatus.debug_data.mavlink_fs_info += "Effective breach status: " + std::to_string(effective_breach_status) + "... ";
+
+            // Add debugging for waypoint/geofence interaction
+            // if (effective_breach_status == 1) {
+            //     currentStatus.debug_data.error_msgs += "\n[GEOFENCE BREACH] Type: " + 
+            //         std::string(breach_types[this->geofence_status_mailbox.breach_type]) + 
+            //         ", Count: " + std::to_string(this->geofence_status_mailbox.breach_count) + 
+            //         ", Time: " + std::to_string(this->node->now().seconds()) + "s\n";
+            // }
+    
+            o->geofence_status->breach_status = effective_breach_status;
             o->geofence_status->breach_count = this->geofence_status_mailbox.breach_count;
             o->geofence_status->breach_type = this->geofence_status_mailbox.breach_type;
             o->geofence_status->breach_time = this->geofence_status_mailbox.breach_time;
 
-            std::string color = (this->geofence_status_mailbox.breach_status == 1) ? RED : "";
-            currentStatus.geofence_status = color + "Geofence Breach: Status = " + std::string(breach_status[o->geofence_status->breach_status]) + 
+            std::string color = (effective_breach_status == 1) ? RED : "";
+            currentStatus.geofence_status = color + "Geofence Breach: Status = " + std::string(breach_status[effective_breach_status]) + 
                                             "\n  # Breaches = " + std::to_string(o->geofence_status->breach_count) +
                                             ", Breach Type = " + std::string(breach_types[this->geofence_status_mailbox.breach_type]) + ", "
                                             "\n  Breach Time = " + std::to_string(o->geofence_status->breach_time) + "ms (since boot of last breach)" + RESET + "\n";
-            //currentStatus.debug_data.mavlink_fs_info += "Fence Breach reached mailbox... ";
 
+            // if (this->geofence_breach_detected && effective_breach_status == 1) {
+            //     currentStatus.geofence_status += "[BREACH DETECTED WITHIN LAST " + 
+            //                                 std::to_string(BREACH_MEMORY_DURATION.count()) + 
+            //                                 " SECONDS]\n";
+            // }
+
+            //currentStatus.debug_data.mavlink_fs_info += "Geofence status updated successfully\n";
             this->geofence_status_available = false;
             radl_turn_off(radl_STALE, &o_f->geofence_status);
         } else {
+            // Add debug even when there's no breach to track normal operation
+            // if ((int)(this->node->now().seconds()) % 10 == 0) {  // Only log once every 10 seconds to avoid spam
+            //     currentStatus.debug_data.mavlink_fs_info += "[" + std::to_string(this->node->now().seconds()) + "] ";
+            //     currentStatus.debug_data.mavlink_fs_info += "No geofence status update (available=" + 
+            //                                             std::to_string(this->geofence_status_available) + 
+            //                                             ", breach_detected=" + std::to_string(this->geofence_breach_detected) + ")\n";
+            // }
             radl_turn_on(radl_STALE, &o_f->geofence_status);
         }
         radl_turn_off(radl_TIMEOUT, &o_f->geofence_status);
@@ -116,14 +176,12 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
 
         if (this->missionwaypoints_status_mailbox) {
             int seq = (int)this->missionwaypoints_status_mailbox->current_seq;
-            currentStatus.current_waypoint = "Current Waypoint " +
-                    std::to_string(seq) + "/" + 
-                    std::to_string((((int) *RADL_THIS->max_number_mission_waypoints) - 1)) + " (seq/total): " +
-                    std::to_string((double) this->missionwaypoints_status_mailbox->waypoints[seq].x_lat) + "," +
-                    std::to_string((double) this->missionwaypoints_status_mailbox->waypoints[seq].y_long) + "," +
-                    std::to_string((double) this->missionwaypoints_status_mailbox->waypoints[seq].z_alt) + " (lat,long,alt)\n";
-        }
-        else {
+            int max_waypoints = ((int) *RADL_THIS->max_number_mission_waypoints);
+
+            currentStatus.current_waypoint = "Current Waypoint (seq/total): " +
+                        std::to_string(seq) + "/" + 
+                        std::to_string(max_waypoints - 1) + "\n";
+        } else {
             currentStatus.current_waypoint = "Mission Way Points status mailbox is null\n";
         }
 
@@ -279,11 +337,11 @@ void AFS_Gateway::step(const radl_in_t* i, const radl_in_flags_t* i_f, radl_out_
                 //<< "GPS Info: "
                 //<< currentStatus.debug_data.mavlink_gps_info
                 //<< " \n"
-                //<< "Fence Status Info: "
-                //<< currentStatus.debug_data.mavlink_fs_info
-                //<< " \n"
-                //<< "Errors: "
-                //<< currentStatus.debug_data.error_msgs;
+                // << "Fence Status Info: "
+                // << currentStatus.debug_data.mavlink_fs_info
+                // << " \n"
+                // << "Errors: "
+                // << currentStatus.debug_data.error_msgs;
         
     } catch (const std::exception& e) {
         currentStatus.debug_data.error_msgs += std::string("Exception in step function: ") + e.what();
@@ -299,65 +357,97 @@ void AFS_Gateway::mavros_battery_state_callback(const sensor_msgs::msg::BatteryS
 
 void AFS_Gateway::mavlink_callback(const mavros_msgs::msg::Mavlink::ConstSharedPtr msg)
 {
-    try{
-        //currentStatus.debug_data.error_msgs += "Inside mavlink_callback... ";
-        //currentStatus.debug_data.error_msgs += "msgid = " + std::to_string(msg->msgid) + "...";
-        //if (msg->msgid == 33)
-        if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
-        {
-            //currentStatus.debug_data.mavlink_gps_info += "Found msgid = 33 (GPS location message), now to decode...";
-            size_t gp_payload_size = MAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN; // length is 28
-            size_t expected_payload64_size = (gp_payload_size + 7) / 8;
-            if (msg->payload64.size() == expected_payload64_size)
-            {
-                //currentStatus.debug_data.mavlink_gps_info += "Found Global Position MAVLink message...";
-                mavlink_message_t mavlink_gp_msg;
-                mavlink_gp_msg.msgid = msg->msgid;
-                mavlink_gp_msg.sysid = msg->sysid;
-                mavlink_gp_msg.compid = msg->compid;
+    try { 
+            // currentStatus.debug_data.error_msgs += "Inside mavlink_callback... ";
+            // currentStatus.debug_data.error_msgs += "msgid = " + std::to_string(msg->msgid) + "...";
+            total_mavlink_messages++;
 
-                //const uint64_t* gp_data_ptr = &msg->payload64[0];
-                memcpy(mavlink_gp_msg.payload64, &msg->payload64[0], gp_payload_size);
-                //currentStatus.debug_data.mavlink_gps_info += "Global Position MAVLink message copied...";
-                // for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_gp_msg.payload64)/sizeof(mavlink_gp_msg.payload64[0]); ++i) {
-                //     mavlink_gp_msg.payload64[i] = msg->payload64[i];
-                // }
-                
-                mavlink_msg_global_position_int_decode(&mavlink_gp_msg, &this->globalposition_status_mailbox);
-                //currentStatus.debug_data.mavlink_gps_info += "Global Position MAVLink message decoded...";
-                this->global_position_status_available = true;
-                this->global_position_timestamp = this->node->now();    
-            }
-        }
-        //else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
-        else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
-        {
-            //currentStatus.debug_data.mavlink_fs_info += "Found msgid = 162 (Fence Breach message), now to decode...";
-            size_t fs_payload_size = MAVLINK_MSG_ID_FENCE_STATUS_LEN;  // Length of 9
-            //currentStatus.debug_data.mavlink_fs_info += "MAVLINK_MSG_ID_FENCE_STATUS_LEN = " + std::to_string(fs_payload_size) + "...";
-            //currentStatus.debug_data.mavlink_fs_info += "msg->payload64.size() = " + std::to_string(msg->payload64.size()) + "...";
-            size_t expected_payload64_size = (fs_payload_size + 7) / 8; // Ceiling division of 9/8 = 2 
-            if (msg->payload64.size() == expected_payload64_size)
+            //if (msg->msgid == 33)
+            if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_GLOBAL_POSITION_INT))
             {
-                //currentStatus.debug_data.mavlink_fs_info += "Found Fence Status MAVLink message...";
-                mavlink_message_t mavlink_fs_msg;
-                mavlink_fs_msg.msgid = msg->msgid;
-                mavlink_fs_msg.sysid = msg->sysid;
-                mavlink_fs_msg.compid = msg->compid;
+                // gps_status_messages++;
+                // currentStatus.debug_data.mavlink_fs_info = "MAVLink stats: Total msgs=" + 
+                //     std::to_string(total_mavlink_messages) + ", GPS msgs=" + 
+                //     std::to_string(gps_status_messages) + "\n" + 
+                //     currentStatus.debug_data.mavlink_fs_info;
+                //currentStatus.debug_data.mavlink_gps_info += "Found msgid = 33 (GPS location message), now to decode...";
+                size_t gp_payload_size = MAVLINK_MSG_ID_GLOBAL_POSITION_INT_LEN; // length is 28
+                size_t expected_payload64_size = (gp_payload_size + 7) / 8;
+                if (msg->payload64.size() == expected_payload64_size)
+                {
+                    //currentStatus.debug_data.mavlink_gps_info += "Found Global Position MAVLink message...";
+                    mavlink_message_t mavlink_gp_msg;
+                    mavlink_gp_msg.msgid = msg->msgid;
+                    mavlink_gp_msg.sysid = msg->sysid;
+                    mavlink_gp_msg.compid = msg->compid;
 
-                //const uint64_t* fs_data_ptr = &msg->payload64[0];
-                memcpy(mavlink_fs_msg.payload64, &msg->payload64[0], fs_payload_size);
-                //currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message copied...";
-                // for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_fs_msg.payload64)/sizeof(mavlink_fs_msg.payload64[0]); ++i) {
-                //     mavlink_fs_msg.payload64[i] = msg->payload64[i];
-                // }
-    
-                mavlink_msg_fence_status_decode(&mavlink_fs_msg, &this->geofence_status_mailbox);
-                //currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message decoded...";
-                this->geofence_status_available = true;
-                this->geofence_status_timestamp = this->node->now();    
+                    //const uint64_t* gp_data_ptr = &msg->payload64[0];
+                    memcpy(mavlink_gp_msg.payload64, &msg->payload64[0], gp_payload_size);
+                    //currentStatus.debug_data.mavlink_gps_info += "Global Position MAVLink message copied...";
+                    // for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_gp_msg.payload64)/sizeof(mavlink_gp_msg.payload64[0]); ++i) {
+                    //     mavlink_gp_msg.payload64[i] = msg->payload64[i];
+                    // }
+                    
+                    mavlink_msg_global_position_int_decode(&mavlink_gp_msg, &this->globalposition_status_mailbox);
+                    //currentStatus.debug_data.mavlink_gps_info += "Global Position MAVLink message decoded...";
+                    this->global_position_status_available = true;
+                    this->global_position_timestamp = this->node->now();  
+                }
             }
-        }
+            //else if (msg->msgid == 162) // MAVLINK_MSG_ID_FENCE_STATUS
+            else if (msg->msgid == static_cast<uint8_t>(MAVLINK_MSG_ID_FENCE_STATUS))
+            {
+                 fence_status_messages++;
+                // currentStatus.debug_data.mavlink_fs_info += "RECEIVED FENCE_STATUS message, payload size: " + 
+                //     std::to_string(msg->payload64.size()) + "\n";
+                // currentStatus.debug_data.mavlink_fs_info = "MAVLink stats: Total msgs=" + 
+                //     std::to_string(total_mavlink_messages) + ", Fence msgs=" + 
+                //     std::to_string(fence_status_messages) + "\n" + 
+                //     currentStatus.debug_data.mavlink_fs_info;
+                //currentStatus.debug_data.mavlink_fs_info += "Found msgid = 162 (Fence Breach message), now to decode...";
+
+                size_t fs_payload_size = MAVLINK_MSG_ID_FENCE_STATUS_LEN;  // Length of 9
+                //currentStatus.debug_data.mavlink_fs_info += "MAVLINK_MSG_ID_FENCE_STATUS_LEN = " + std::to_string(fs_payload_size) + "...";
+                //currentStatus.debug_data.mavlink_fs_info += "msg->payload64.size() = " + std::to_string(msg->payload64.size()) + "...";
+                size_t expected_payload64_size = (fs_payload_size + 7) / 8; // Ceiling division of 9/8 = 2 
+                if (msg->payload64.size() == expected_payload64_size)
+                {
+                    //currentStatus.debug_data.mavlink_fs_info += "Found Fence Status MAVLink message...";
+                    mavlink_message_t mavlink_fs_msg;
+                    mavlink_fs_msg.msgid = msg->msgid;
+                    mavlink_fs_msg.sysid = msg->sysid;
+                    mavlink_fs_msg.compid = msg->compid;
+
+                    //const uint64_t* fs_data_ptr = &msg->payload64[0];
+                    memcpy(mavlink_fs_msg.payload64, &msg->payload64[0], fs_payload_size);
+                    //currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message copied...";
+                    // for (size_t i = 0; i < msg->payload64.size() && i < sizeof(mavlink_fs_msg.payload64)/sizeof(mavlink_fs_msg.payload64[0]); ++i) {
+                    //     mavlink_fs_msg.payload64[i] = msg->payload64[i];
+                    // }
+        
+                    mavlink_msg_fence_status_decode(&mavlink_fs_msg, &this->geofence_status_mailbox);
+                    //currentStatus.debug_data.mavlink_fs_info += "Fence Status MAVLink message decoded...";
+                    this->geofence_status_available = true;
+                    this->geofence_status_timestamp = this->node->now(); 
+                    
+                    // Track breach status more persistently
+                    if (this->geofence_status_mailbox.breach_status == 1) {
+                        this->geofence_breach_detected = true;
+                        this->last_breach_time = this->node->now();
+
+                        // Log the breach
+                        GeofenceBreach breach;
+                        breach.timestamp = this->node->now();
+                        breach.breach_type = this->geofence_status_mailbox.breach_type;
+                        breach.breach_count = this->geofence_status_mailbox.breach_count;
+                        
+                        recent_breaches.push_back(breach);
+                        if (recent_breaches.size() > MAX_BREACH_HISTORY) {
+                            recent_breaches.erase(recent_breaches.begin());
+                        } 
+                    }
+                }
+            }
     } catch (const std::runtime_error& e) {
         currentStatus.debug_data.error_msgs += std::string("Runtime error in MAVLink callback: ") + e.what();
     } catch (const std::invalid_argument& e) {
@@ -405,4 +495,18 @@ std::string AFS_Gateway::formatTimestamp(const builtin_interfaces::msg::Time& st
     std::ostringstream oss;
     oss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
     return oss.str();
+}
+
+// Helper function to check if coordinate value is valid
+bool AFS_Gateway::isValidCoordinate(double value, double minValue, double maxValue) {
+    return !std::isnan(value) && !std::isinf(value) && 
+           value >= minValue && value <= maxValue;
+}
+
+std::string AFS_Gateway::formatWaypointCoordinate(double value, double minValue, double maxValue) {
+    if (isValidCoordinate(value, minValue, maxValue)) {
+        return std::to_string(value);
+    } else {
+        return "0.000000"; // Return zero for invalid values
+    }
 }
